@@ -48,7 +48,27 @@ You can also manually set the projection:
         // projection:'equirectangular'
         //projection:'lambertConformalConic'
       });
-
-   
   }
 }
+/*
+You're doing Option 3: Manual Integration, which works like this:
+import * as mapboxgl from 'mapbox-gl';
+
+in angular.json
+  "styles": [
+              "src/styles.css",
+               "node_modules/mapbox-gl/dist/mapbox-gl.css"
+            ],
+
+  📚 Where to Find This Kind of Example?          
+  Since it's not officially documented, you’ll find examples in:
+| Source                         | Link                                                                                   |
+| ------------------------------ | -------------------------------------------------------------------------------------- |
+| ✅ Medium articles              | search: `angular mapbox-gl site:medium.com`                                            |
+| ✅ Stack Overflow               | `angular mapbox-gl` tag                                                                |
+| ✅ GitHub samples               | [GitHub: mapbox angular](https://github.com/search?q=angular+mapbox&type=repositories) |
+| ✅ Custom blog tutorials        | Dev.to, LogRocket, etc.                                                                |
+| ⚠️ NOT in Mapbox official docs | Because they focus on raw `mapbox-gl`, not Angular framework                           |
+| ⚠️ NOT in Angular docs         | Because Angular doesn’t officially document third-party JS libraries                   |
+
+*/
