@@ -14,6 +14,29 @@ body { margin: 0; padding: 0; }
 <body>
 <div id="map"></div>
 <script>
+    //🧠 Hva er mapboxgl og hvor kommer det fra?
+    //📌 mapboxgl er et globalt JavaScript-objekt som blir tilgjengelig automatisk når du laster inn Mapbox sitt JavaScript-bibliotek via dette <script>-tagget:
+        //<script src="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.js">
+        // Så snart denne fila lastes inn, opprettes mapboxgl som en global variabel (altså på window.mapboxgl), og kan brukes direkte i skriptet ditt etterpå.
+        /*
+        🔍 Hva inneholder mapboxgl?
+        mapboxgl er et JavaScript-namespace/objekt som inneholder alt Mapbox GL JS trenger:
+
+        mapboxgl.Map → klassen for å opprette og konfigurere kart
+
+        mapboxgl.Marker → for å lage markører
+
+        mapboxgl.Popup → for infobokser
+
+        mapboxgl.NavigationControl → zoom/verktøylinje
+
+        mapboxgl.accessToken → din offentlige API-nøkkel
+        ✅ Hvorfor fungerer det uten import?
+        Fordi du laster inn biblioteket fra et <script>-tagg, blir mapboxgl gjort tilgjengelig globalt – du trenger ikke importere det som i moderne JavaScript-moduler.
+            🛠️ Hvis du brukte moderne JavaScript med bundler (Vite, Webpack, etc.)
+            Da måtte du brukt:import mapboxgl from 'mapbox-gl';import mapboxgl from 'mapbox-gl';
+        */
+    
 	mapboxgl.accessToken = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
     const map = new mapboxgl.Map({
         container: 'map', // container ID

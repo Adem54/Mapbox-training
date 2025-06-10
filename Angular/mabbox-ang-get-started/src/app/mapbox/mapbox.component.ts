@@ -1,7 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import * as mapboxgl from 'mapbox-gl';
 
-
 @Component({
   selector: 'app-mapbox',
   standalone: false,
