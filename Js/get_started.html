@@ -1,24 +1,47 @@
 <!DOCTYPE html>
 <html>
-<head>
-<meta charset="utf-8">
-<title>Mapbox GL JS map</title>
-<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
-<link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet">
-<script src="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.js"></script>
-<style>
-body { margin: 0; padding: 0; }
-#map { position: absolute; top: 0; bottom: 0; width: 100%; }
-</style>
-</head>
-<body>
-<div id="map"></div>
-<script>
-    //🧠 Hva er mapboxgl og hvor kommer det fra?
-    //📌 mapboxgl er et globalt JavaScript-objekt som blir tilgjengelig automatisk når du laster inn Mapbox sitt JavaScript-bibliotek via dette <script>-tagget:
-        //<script src="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.js">
-        // Så snart denne fila lastes inn, opprettes mapboxgl som en global variabel (altså på window.mapboxgl), og kan brukes direkte i skriptet ditt etterpå.
-        /*
+  <head>
+    <meta charset="utf-8" />
+    <title>Mapbox GL JS map</title>
+    <meta
+      name="viewport"
+      content="initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <!-- Mapbox GL JS -->
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+    <link
+      href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css"
+      rel="stylesheet"
+    />
+
+    <!-- Mapbox GL Draw -->
+    <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
+    <link
+      href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css"
+      rel="stylesheet"
+    />
+
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: sans-serif;
+      }
+      #map {
+        height: 90vh;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- <div id="map"></div> -->
+    <div id="map" style="height: 90vh"></div>
+    <script>
+      //🧠 Hva er mapboxgl og hvor kommer det fra?
+      //📌 mapboxgl er et globalt JavaScript-objekt som blir tilgjengelig automatisk når du laster inn Mapbox sitt JavaScript-bibliotek via dette <script>-tagget:
+      //<script src="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.js">
+      // Så snart denne fila lastes inn, opprettes mapboxgl som en global variabel (altså på window.mapboxgl), og kan brukes direkte i skriptet ditt etterpå.
+      /*
         🔍 Hva inneholder mapboxgl?
         mapboxgl er et JavaScript-namespace/objekt som inneholder alt Mapbox GL JS trenger:
 
@@ -35,15 +58,459 @@ body { margin: 0; padding: 0; }
         Fordi du laster inn biblioteket fra et <script>-tagg, blir mapboxgl gjort tilgjengelig globalt – du trenger ikke importere det som i moderne JavaScript-moduler.
             🛠️ Hvis du brukte moderne JavaScript med bundler (Vite, Webpack, etc.)
             Da måtte du brukt:import mapboxgl from 'mapbox-gl';import mapboxgl from 'mapbox-gl';
-        */
+        
     
 	mapboxgl.accessToken = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
     const map = new mapboxgl.Map({
         container: 'map', // container ID
         center: [-74.5, 40], // starting position [lng, lat]. Note that lat must be set between -90 and 90
-        zoom: 9 // starting zoom
-    });
-</script>
+        zoom: 9, // starting zoom
+         style: 'mapbox://styles/mapbox/standard',
+         style: 'mapbox://styles/mapbox/streets-v12',
 
-</body>
+
+    });  */
+
+      mapboxgl.accessToken =
+        "pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw";
+      const map = new mapboxgl.Map({
+        container: "map", // container ID
+        // Choose from Mapbox's core styles, or make your own style with Mapbox Studio
+        //mapbox templates..and mapbox customized templates(we can customize via mapbox studio and publish and use)
+        style: "mapbox://styles/mapbox/light-v11", // style URL
+        style: "mapbox://styles/mapbox/streets-v12",
+        //We can use thirdpart base map resources...
+        style: 'https://api.maptiler.com/maps/streets-v2/style.json?key=ylLw6cixG0195FMliDuz', // 👈 third-party //ylLw6cixG0195FMliDuz  - a8eeeeb73b36
+        style:'https://api.maptiler.com/maps/satellite/style.json?key=ylLw6cixG0195FMliDuz',
+
+        //https://docs.mapbox.com/api/maps/styles/  doc..
+        style:'mapbox://styles/mapbox/navigation-night-v1',
+        style:'mapbox://styles/mapbox/navigation-day-v1',
+        style:'mapbox://styles/mapbox/satellite-streets-v12',
+        style:'mapbox://styles/mapbox/satellite-v9',
+        style:'mapbox://styles/mapbox/light-v11',
+        style: "mapbox://styles/mapbox/streets-v12",
+        style:'mapbox://styles/adem-54/cmbw1wy9n006101s9683nca1n',
+        style: {
+            'version': 8,
+            'sources': {
+                'raster-tiles': {
+                    'type': 'raster',
+                  //  'tiles': ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                    'tiles': ['https://tile.openstreetmap.bzh/ca/{z}/{x}/{y}.png'],
+                    //https://tile.openstreetmap.bzh/ca/{z}/{x}/{y}.png
+                    'tileSize': 256,
+                    'attribution':
+                        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                },
+                
+                 // Vector tileset from Mapbox (your dataset, exported as tileset)
+                'custom_vector': {
+                    type: 'vector',
+                    url: 'mapbox://adem-54.cmbw1gm6h4tze1oozwri8wvkl-3znh4'
+                }
+
+            },
+            'layers': [
+                {
+                    'id': 'simple-tiles',
+                    'type': 'raster',
+                    'source': 'raster-tiles',
+                    'minzoom': 0,
+                    'maxzoom': 22
+                },
+                {
+                    id: 'custom-points-layer',
+                    type: 'circle',
+                    source: 'custom_vector',
+                    'source-layer': 'Mypoints', // 🧠 this must match your dataset name
+                    paint: {
+                    'circle-color': '#ff0000',
+                    'circle-radius': 5
+                    }
+                }
+                
+                ]
+                },
+                     style: 'mapbox://styles/mapbox/standard',
+                     style: "mapbox://styles/mapbox/streets-v12",
+                    center: [-74.5, 40], // starting position
+                    zoom: 2 // starting zoom
+                    // center: [-68.137343, 45.137451], // starting position
+                    // zoom: 5, // starting zoom
+                });
+
+      //Geojson data
+      let polyData = {
+        type: "Feature",
+        geometry: {
+          type: "Polygon",
+          // These coordinates outline Maine.
+          coordinates: [
+            [
+              [-67.13734, 45.13745],
+              [-66.96466, 44.8097],
+              [-68.03252, 44.3252],
+              [-69.06, 43.98],
+              [-70.11617, 43.68405],
+              [-70.64573, 43.09008],
+              [-70.75102, 43.08003],
+              [-70.79761, 43.21973],
+              [-70.98176, 43.36789],
+              [-70.94416, 43.46633],
+              [-71.08482, 45.30524],
+              [-70.66002, 45.46022],
+              [-70.30495, 45.91479],
+              [-70.00014, 46.69317],
+              [-69.23708, 47.44777],
+              [-68.90478, 47.18479],
+              [-68.2343, 47.35462],
+              [-67.79035, 47.06624],
+              [-67.79141, 45.70258],
+              [-67.13734, 45.13745],
+            ],
+          ],
+        },
+      };
+
+      const geojson = {
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "coordinates": [
+          7.458167114915398,
+          58.039277180047264
+        ],
+        "type": "Point"
+      },
+       properties: {
+        title: 'Mapbox',
+        description: 'Text1'
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "coordinates": [
+          7.960775423449007,
+          58.16224113776809
+        ],
+        "type": "Point"
+      },
+       properties: {
+        title: 'Mapbox',
+        description: 'Text2'
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "coordinates": [
+          8.435623571206008,
+          58.252937046430105
+        ],
+        "type": "Point"
+      },
+       properties: {
+        title: 'Mapbox',
+        description: 'Text3'
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "coordinates": [
+          8.7427098644348,
+          58.47022918394427
+        ],
+        "type": "Point"
+      },
+       properties: {
+        title: 'Mapbox',
+        description: 'Text4'
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "coordinates": [
+          9.245551536621633,
+          58.7079756454591
+        ],
+        "type": "Point"
+      },
+       properties: {
+        title: 'Mapbox',
+        description: 'Text5'
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "coordinates": [
+          9.473583323358127,
+          58.882003011787646
+        ],
+        "type": "Point"
+      },
+       properties: {
+        title: 'Mapbox',
+        description: 'Text6'
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "coordinates": [
+          9.710877424772633,
+          59.13851213065331
+        ],
+        "type": "Point"
+      },
+       properties: {
+        title: 'Mapbox',
+        description: 'Text7'
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "coordinates": [
+          9.556752317381779,
+          59.22425736103594
+        ],
+        "type": "Point"
+      },
+       properties: {
+        title: 'Mapbox',
+        description: 'Text8'
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "coordinates": [
+          10.39061826169933,
+          59.27006217105392
+        ],
+        "type": "Point"
+      },
+       properties: {
+        title: 'Mapbox',
+        description: 'Text9'
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "coordinates": [
+          10.651459096879421,
+          59.44575864297849
+        ],
+        "type": "Point"
+      },
+       properties: {
+        title: 'Mapbox',
+        description: 'Text10'
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "coordinates": [
+          10.82744560326907,
+          59.76656718343074
+        ],
+        "type": "Point"
+      },
+       properties: {
+        title: 'Mapbox',
+        description: 'Text11'
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "coordinates": [
+          10.710939393265392,
+          59.92562272310383
+        ],
+        "type": "Point"
+      }, properties: {
+        title: 'Mapbox',
+        description: 'Text12'
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "coordinates": [
+          10.268323402310045,
+          59.754814141069005
+        ],
+        "type": "Point"
+      },
+       properties: {
+        title: 'Mapbox',
+        description: 'Text13'
+      }
+    }
+  ]
+}
+
+const geojson2 = {
+  type: 'FeatureCollection',
+  features: [
+    {
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [-77.032, 38.913]
+      },
+      properties: {
+        title: 'Mapbox',
+        description: 'Washington, D.C.'
+      }
+    },
+    {
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [-122.414, 37.776]
+      },
+      properties: {
+        title: 'Mapbox',
+        description: 'San Francisco, California'
+      }
+    }
+  ]
+};
+      map.on("load", () => {
+        // Add a data source containing GeoJSON data.
+        map.addSource("maine", {
+          type: "geojson",
+          data: polyData,
+        });
+
+        // Add a new layer to visualize the polygon.
+        // map.addLayer({
+        //   id: "maine",
+        //   type: "fill",
+        //   source: "maine", // reference the data source
+        //   layout: {},
+        //   paint: {
+        //     "fill-color": "#fe5000", // blue color fill
+        //     "fill-opacity": 0.4,
+        //   },
+        // });
+        // // Add a black outline around the polygon.
+        // map.addLayer({
+        //   id: "outline",
+        //   type: "line",
+        //   source: "maine",
+        //   layout: {},
+        //   paint: {
+        //     "line-color": "#ed1b2e",
+        //     "line-width": 3,
+        //   },
+        // });
+
+     
+
+  //style:'mapbox://styles/adem-54/cmal59jwv014e01qo14gtce80',
+
+      map.addSource('custom_vector', {
+    type: 'vector',
+    url: 'mapbox://adem-54.cmbw1gm6h4tze1oozwri8wvkl-3znh4' // Replace with your actual tileset ID
+  });
+
+  map.addLayer({
+    id: 'custom-points-layer',
+    type: 'circle',
+    source: 'custom_vector',
+    'source-layer': 'Mypoints', // Check in tileset viewer
+    paint: {
+      'circle-color': '#ff0000',
+      'circle-radius': 5
+    }
+  });
+
+  geojson.features.forEach((feature) => {
+    // Create a new HTML element for the marker (optional)
+    const el = document.createElement('div');
+    el.className = 'marker';
+    el.style.width = '20px';
+    el.style.height = '20px';
+    el.style.backgroundColor = 'pink';
+    el.style.borderRadius = '50%';
+
+    // Create the marker and add it to the map
+    new mapboxgl.Marker(el)
+      .setLngLat(feature.geometry.coordinates)
+      .setPopup(new mapboxgl.Popup({ offset: 25 }) // Optional popup
+        .setText(`${feature.properties.title}: ${feature.properties.description}`))
+      .addTo(map);
+  });
+      });
+
+// add markers to ALL GEOJSON points data
+// for (const feature of geojson.features) {
+  
+//   // code from step 7-1 will go here
+
+//   // make a marker for each feature and add to the map
+//   new mapboxgl.Marker().setLngLat(feature.geometry.coordinates).addTo(map);  // Replace this line with code from step 7-2
+
+//    //code from step 8 will go here
+// }
+
+
+        // Create a default Marker and add it to the map.
+//     const marker1 = new mapboxgl.Marker()
+//         .setLngLat([12.554729, 55.70651])
+//         .addTo(map);
+
+//     // Create a default Marker, colored black, rotated 45 degrees.
+//     const marker2 = new mapboxgl.Marker({ color: 'pink', rotation: 45 })
+//         .setLngLat([12.65147, 55.608166])
+//         .addTo(map);
+    
+
+//    const popup = new mapboxgl.Popup({ offset: 25 })
+//   .setText("Hello from Copenhagen!");
+
+// new mapboxgl.Marker({ color: 'black', rotation: 45 })
+//   .setLngLat([12.554729, 55.70651])
+//   .setPopup(popup)
+//   .addTo(map);
+
+
+//           const popup2 = new mapboxgl.Popup({ offset: 25 })
+//   .setText("Hello from MAOLMØ!");
+//   new mapboxgl.Marker({ color: 'pink', rotation: 45 })
+//   .setLngLat([12.65147, 55.608166])
+//   .setPopup(popup2)
+//   .addTo(map);
+      
+    </script>
+  </body>
 </html>
+<!-- 
+// if the `style` option is not specified, loads Mapbox Standard by default
+You can explicitly set Mapbox Standard as the style for your map by adding its style URL to the style option when initializing the map:
+-->
