@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Draw all geometry types with Mapbox GL Draw</title>
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet" />
+  <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.2/mapbox-gl-draw.css" rel="stylesheet" />
+  <style>
+    body { margin: 0; padding: 0; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.js"></script>
+<script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.4.2/mapbox-gl-draw.js"></script>
+<script>
+  	mapboxgl.accessToken = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+
+
+  const map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/mapbox/streets-v12',
+    center: [-77.03, 38.91],
+    zoom: 12
+  });
+
+  const Draw = new MapboxDraw({
+    displayControlsDefault: false,
+    controls: {
+      point: true,
+      line_string: true,
+      polygon: true,
+      trash: true
+    },
+    styles: [
+      // Polygon fill
+      {
+        id: 'gl-draw-polygon-fill',
+        type: 'fill',
+        filter: ['all', ['==', '$type', 'Polygon'],
+                 ['!=', 'mode', 'static']],
+        paint: {
+          'fill-color': '#fbb03b',
+          'fill-opacity': 0.3
+        }
+      },
+      // Polygon outline
+      {
+        id: 'gl-draw-polygon-stroke-active',
+        type: 'line',
+        filter: ['all', ['==', '$type', 'Polygon'],
+                 ['!=', 'mode', 'static']],
+        paint: {
+          'line-color': '#fbb03b',
+          'line-width': 2
+        }
+      },
+      // LineString
+      {
+        id: 'gl-draw-line',
+        type: 'line',
+        filter: ['all', ['==', '$type', 'LineString'],
+                 ['!=', 'mode', 'static']],
+        paint: {
+          'line-color': '#3b9ddd',
+          'line-width': 3
+        }
+      },
+      // Points
+      {
+        id: 'gl-draw-point',
+        type: 'circle',
+        filter: ['all', ['==', '$type', 'Point'],
+                 ['!=', 'mode', 'static']],
+        paint: {
+          'circle-radius': 6,
+          'circle-color': '#ff0000'
+        }
+      }
+    ]
+  });
+
+  map.addControl(Draw, 'top-left');
+
+  // 🔔 Listen to draw events
+  map.on('draw.create', (e) => {
+    console.log('Feature created:', e.features[0]);
+  });
+
+  map.on('draw.update', (e) => {
+    console.log('Feature updated:', e.features[0]);
+  });
+
+  map.on('draw.delete', (e) => {
+    console.log('Feature deleted:', e.features[0]);
+  });
+</script>
+</body>
+</html>
