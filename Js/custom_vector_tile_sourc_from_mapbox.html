@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Mapbox GL JS map</title>
+    <meta
+      name="viewport"
+      content="initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <!-- Mapbox GL JS -->
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+    <link
+      href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css"
+      rel="stylesheet"
+    />
+
+    <!-- Mapbox GL Draw -->
+    <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
+    <link
+      href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css"
+      rel="stylesheet"
+    />
+
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: sans-serif;
+      }
+      #map {
+        height: 90vh;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- <div id="map"></div> -->
+    <div id="map" style="height: 90vh"></div>
+    <script>
+      //🧠 Hva er mapboxgl og hvor kommer det fra?
+      //📌 mapboxgl er et globalt JavaScript-objekt som blir tilgjengelig automatisk når du laster inn Mapbox sitt JavaScript-bibliotek via dette <script>-tagget:
+      //<script src="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.js">
+      // Så snart denne fila lastes inn, opprettes mapboxgl som en global variabel (altså på window.mapboxgl), og kan brukes direkte i skriptet ditt etterpå.
+      /*
+        🔍 Hva inneholder mapboxgl?
+        mapboxgl er et JavaScript-namespace/objekt som inneholder alt Mapbox GL JS trenger:
+
+        mapboxgl.Map → klassen for å opprette og konfigurere kart
+
+        mapboxgl.Marker → for å lage markører
+
+        mapboxgl.Popup → for infobokser
+
+        mapboxgl.NavigationControl → zoom/verktøylinje
+
+        mapboxgl.accessToken → din offentlige API-nøkkel
+        ✅ Hvorfor fungerer det uten import?
+        Fordi du laster inn biblioteket fra et <script>-tagg, blir mapboxgl gjort tilgjengelig globalt – du trenger ikke importere det som i moderne JavaScript-moduler.
+            🛠️ Hvis du brukte moderne JavaScript med bundler (Vite, Webpack, etc.)
+            Da måtte du brukt:import mapboxgl from 'mapbox-gl';import mapboxgl from 'mapbox-gl';
+        
+    
+	mapboxgl.accessToken = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+    const map = new mapboxgl.Map({
+        container: 'map', // container ID
+        center: [-74.5, 40], // starting position [lng, lat]. Note that lat must be set between -90 and 90
+        zoom: 9, // starting zoom
+         style: 'mapbox://styles/mapbox/standard',
+         style: 'mapbox://styles/mapbox/streets-v12',
+
+
+    });  */
+
+      mapboxgl.accessToken =
+        "pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw";
+      const map = new mapboxgl.Map({
+        container: "map", // container ID
+        // Choose from Mapbox's core styles, or make your own style with Mapbox Studio
+        //mapbox templates..and mapbox customized templates(we can customize via mapbox studio and publish and use)
+        style: "mapbox://styles/mapbox/light-v11", // style URL
+        style: "mapbox://styles/mapbox/streets-v12",
+        //We can use thirdpart base map resources...
+        style: 'https://api.maptiler.com/maps/streets-v2/style.json?key=ylLw6cixG0195FMliDuz', // 👈 third-party //ylLw6cixG0195FMliDuz  - a8eeeeb73b36
+        style:'https://api.maptiler.com/maps/satellite/style.json?key=ylLw6cixG0195FMliDuz',
+
+        //https://docs.mapbox.com/api/maps/styles/  doc..
+        style:'mapbox://styles/mapbox/navigation-night-v1',
+        style:'mapbox://styles/mapbox/navigation-day-v1',
+        style:'mapbox://styles/mapbox/satellite-streets-v12',
+        style:'mapbox://styles/mapbox/satellite-v9',
+        style:'mapbox://styles/mapbox/light-v11',
+        style: "mapbox://styles/mapbox/streets-v12",
+        style:'mapbox://styles/adem-54/cmbw1wy9n006101s9683nca1n',
+        style: {
+            'version': 8,
+            'sources': {
+                'raster-tiles': {
+                    'type': 'raster',
+                  //  'tiles': ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+                    'tiles': ['https://tile.openstreetmap.bzh/ca/{z}/{x}/{y}.png'],
+                    //https://tile.openstreetmap.bzh/ca/{z}/{x}/{y}.png
+                    'tileSize': 256,
+                    'attribution':
+                        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                },
+                
+                 // Vector tileset from Mapbox (your dataset, exported as tileset)
+                'custom_vector': {
+                    type: 'vector',
+                    url: 'mapbox://adem-54.cmbw1gm6h4tze1oozwri8wvkl-3znh4'
+                }
+
+            },
+            'layers': [
+                {
+                    'id': 'simple-tiles',
+                    'type': 'raster',
+                    'source': 'raster-tiles',
+                    'minzoom': 0,
+                    'maxzoom': 22
+                },
+                {
+                    id: 'custom-points-layer',
+                    type: 'circle',
+                    source: 'custom_vector',
+                    'source-layer': 'Mypoints', // 🧠 this must match your dataset name
+                    paint: {
+                    'circle-color': '#ff0000',
+                    'circle-radius': 5
+                    }
+                }
+                
+                ]
+                },
+                     style: 'mapbox://styles/mapbox/standard',
+                     style: "mapbox://styles/mapbox/streets-v12",
+                    center: [-74.5, 40], // starting position
+                    zoom: 2 // starting zoom
+                    // center: [-68.137343, 45.137451], // starting position
+                    // zoom: 5, // starting zoom
+                });
+
+      map.on("load", () => {
+        // Add a data source containing GeoJSON data.
+      
+
+  //style:'mapbox://styles/adem-54/cmal59jwv014e01qo14gtce80',
+
+      map.addSource('custom_vector', {
+    type: 'vector',
+    url: 'mapbox://adem-54.cmbzqqmvx1pub1mrngui1ozft-05pkm' // Replace with your actual tileset ID
+  });
+
+  //tileDatasetId :  adem-54.cmbzqqmvx1pub1mrngui1ozft-05pkm    from mapbxos studio from new dataset created
+  //when to use we can use like this: mapbox://adem-54.cmbzqqmvx1pub1mrngui1ozft-05pkm
+  // Replace this with your actual source-layer name from the tileset
+  const sourceLayer = "test_dataset";
+
+  // ✅ 1. Show points using 'circle' or 'symbol'
+  map.addLayer({
+    id: "custom-points",
+    type: "circle", // or 'symbol' if you want icons/text
+    source: "custom_vector",
+    "source-layer": sourceLayer,
+    filter: ["==", "$type", "Point"],
+    paint: {
+      "circle-color": "#ff0000",
+      "circle-radius": 6
+    }
+  });
+
+  // ✅ 2. Show lines using 'line'
+  map.addLayer({
+    id: "custom-lines",
+    type: "line",
+    source: "custom_vector",
+    "source-layer": sourceLayer,
+    filter: ["==", "$type", "LineString"],
+    paint: {
+      "line-color": "#007cbf",
+      "line-width": 3
+    }
+  });
+
+  // ✅ 3. Show polygons using 'fill'
+  map.addLayer({
+    id: "custom-polygons",
+    type: "fill",
+    source: "custom_vector",
+    "source-layer": sourceLayer,
+    filter: ["==", "$type", "Polygon"],
+    paint: {
+      "fill-color": "#00ff00",
+      "fill-opacity": 0.5
+    }
+  });
+      });
+    </script>
+  </body>
+</html>
+<!-- 
+// if the `style` option is not specified, loads Mapbox Standard by default
+You can explicitly set Mapbox Standard as the style for your map by adding its style URL to the style option when initializing the map:
+-->

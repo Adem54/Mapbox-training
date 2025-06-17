@@ -1,120 +1,149 @@
 <!DOCTYPE html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <title>Custom Markers + Popups</title>
-  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
-  <link href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css" rel="stylesheet">
-  <script src="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.js"></script>
-  <style>
-    body { margin: 0; padding: 0; }
-    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-  </style>
-</head>
-<body>
-<div id="map"></div>
+  <head>
+    <meta charset="utf-8" />
+    <title>Custom Markers + Popups</title>
+    <meta
+      name="viewport"
+      content="initial-scale=1,maximum-scale=1,user-scalable=no"
+    />
+    <link
+      href="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.css"
+      rel="stylesheet"
+    />
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.12.0/mapbox-gl.js"></script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      #map {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
 
-<script>
-  mapboxgl.accessToken = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
-  
-  const map = new mapboxgl.Map({
-    container: 'map',
-    style: 'mapbox://styles/mapbox/standard',
-    center: [-98, 39],
-    zoom: 3
-  });
+    <script>
+      mapboxgl.accessToken =
+        "pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw";
 
-  map.on('load', () => {
-    // 🔽 Load your custom marker image
-    map.loadImage('https://docs.mapbox.com/mapbox-gl-js/assets/custom_marker.png', (error, image) => {
-      if (error) throw error;
-      map.addImage('custom-marker', image);
-
-      // 🔽 Add a GeoJSON source with multiple properties
-      map.addSource('locations', {
-        type: 'geojson',
-        data: {
-          type: 'FeatureCollection',
-          features: [
-            {
-              type: 'Feature',
-              geometry: {
-                type: 'Point',
-                coordinates: [-77.032, 38.913]
-              },
-              properties: {
-                title: 'Mapbox DC',
-                description: 'Our HQ in Washington',
-                id: 101,
-                city: 'Washington'
-              }
-            },
-            {
-              type: 'Feature',
-              geometry: {
-                type: 'Point',
-                coordinates: [-122.414, 37.776]
-              },
-              properties: {
-                title: 'Mapbox SF',
-                description: 'Office in San Francisco',
-                id: 102,
-                city: 'San Francisco'
-              }
-            }
-          ]
-        }
+      const map = new mapboxgl.Map({
+        container: "map",
+        style: "mapbox://styles/mapbox/standard",
+        center: [-98, 39],
+        zoom: 3,
       });
 
-      // 🔽 Add the symbol layer
-      map.addLayer({
-        id: 'location-points',
-        type: 'symbol',
-        source: 'locations',
-        layout: {
-          'icon-image': 'custom-marker',
-          'icon-size': 1,
-         // 'text-field': ['get', 'title'],
-          'text-field': [
-            'format',
-            ['get', 'title'], { 'font-scale': 1.2 },
-            '\n',
-            ['get', 'description'], { 'font-scale': 1 },
-            '\n',
-            ['get', 'city'], { 'font-scale': 0.9 }
-        ],
-        
-          'text-offset': [0, 1.5],
-          'text-anchor': 'top'
-        }
-      });
+      map.on("load", () => {
+        // 🔽 Load your custom marker image
+        map.loadImage(
+          "https://docs.mapbox.com/mapbox-gl-js/assets/custom_marker.png",
+          (error, image) => {
+            if (error) throw error;
+            map.addImage("custom-marker", image);
 
-      // 🔽 Add popup on click
-      map.on('click', 'location-points', (e) => {
-        const props = e.features[0].properties;
-        const coordinates = e.features[0].geometry.coordinates;
-        console.log("coordinates: ", coordinates)
+            // 🔽 Add a GeoJSON source with multiple properties
+            map.addSource("locations", {
+              type: "geojson",
+              data: {
+                type: "FeatureCollection",
+                features: [
+                  {
+                    type: "Feature",
+                    geometry: {
+                      type: "Point",
+                      coordinates: [-77.032, 38.913],
+                    },
+                    properties: {
+                      title: "Mapbox DC",
+                      description: "Our HQ in Washington",
+                      id: 101,
+                      city: "Washington",
+                    },
+                  },
+                  {
+                    type: "Feature",
+                    geometry: {
+                      type: "Point",
+                      coordinates: [-122.414, 37.776],
+                    },
+                    properties: {
+                      title: "Mapbox SF",
+                      description: "Office in San Francisco",
+                      id: 102,
+                      city: "San Francisco",
+                    },
+                  },
+                ],
+              },
+            });
 
-        new mapboxgl.Popup()
-          .setLngLat(coordinates)
-          .setHTML(
-            `<strong>${props.title}</strong><br/>
+            // 🔽 Add the symbol layer
+            map.addLayer({
+              id: "location-points",
+              type: "symbol",
+              source: "locations",
+              layout: {
+                "icon-image": "custom-marker",
+                "icon-size": 1,
+                // 'text-field': ['get', 'title'],
+                "text-field": [
+                  "format",
+                  ["get", "title"],
+                  // { "font-scale": 1.2 },
+                  "\n",
+                  ["get", "description"],
+                  // { "font-scale": 1 },
+                  "\n",
+                  ["get", "city"],
+                  // { "font-scale": 0.9 },
+                ],
+
+                "text-offset": [0, 1.5],
+                "text-anchor": "top",
+              "text-size": [
+      "interpolate",
+      ["linear"],
+      ["zoom"],
+      3, 6,
+      10, 14,
+      15, 20
+    ]
+              },
+            });
+
+            // 🔽 Add popup on click
+            map.on("click", "location-points", (e) => {
+              const props = e.features[0].properties;
+              const coordinates = e.features[0].geometry.coordinates;
+              console.log("coordinates: ", coordinates);
+
+              new mapboxgl.Popup()
+                .setLngLat(coordinates)
+                .setHTML(
+                  `<strong>${props.title}</strong><br/>
              <em>${props.city}</em><br/>
              ${props.description}<br/>
              <small>ID: ${props.id}</small>`
-          )
-          .addTo(map);
-      });
+                )
+                .addTo(map);
+            });
 
-      // Change the cursor on hover
-      map.on('mouseenter', 'location-points', () => {
-        map.getCanvas().style.cursor = 'pointer';
+            // Change the cursor on hover
+            map.on("mouseenter", "location-points", () => {
+              map.getCanvas().style.cursor = "pointer";
+            });
+            map.on("mouseleave", "location-points", () => {
+              map.getCanvas().style.cursor = "";
+            });
+          }
+        );
       });
-      map.on('mouseleave', 'location-points', () => {
-        map.getCanvas().style.cursor = '';
-      });
-    });
-  });
-</script>
-</body>
+    </script>
+  </body>
 </html>
