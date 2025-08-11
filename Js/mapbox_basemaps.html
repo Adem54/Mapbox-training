@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Mapbox GL JS map</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+<style>
+body { margin: 0; padding: 0; }
+#map { position: absolute; top: 0; bottom: 0; width: 100%; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+	mapboxgl.accessToken = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+    const map = new mapboxgl.Map({
+        container: 'map', // container ID
+     style:'mapbox://styles/adem-54/cmbxhn1wu00a101qwepqj5ugi',//Bu da console.mapbox da kendi olsuturdugmz bir style url in kullanilmasina ornektir
+      //style:'mapbox://styles/mapbox/light-v11',
+        center: [9.61436, 59.18398], // lon, lat
+        zoom: 12.82
+    });
+    
+//MAPBOX UZERINDEN YAPTIGIMIZ DEGISIKLKLER HEMEN GELMIYOR BIRAZ ZAMAN ALABILIYOR...
+// log any runtime issues
+map.on('error', e => console.warn('Mapbox error:', e && e.error));
+map.on("load", () => {
+
+map.addSource('custom_vector', {
+    type: 'vector',
+    url: 'mapbox://adem-54.cme756va318ln1oqn7cmdmbfc-76j4p' // Replace with your actual tileset ID
+});
+
+const sourceLayer = "my_dataset";
+
+  // ✅ 1. Show points using 'circle' or 'symbol'
+  map.addLayer({
+    id: "custom-points",
+    type: "circle", // or 'symbol' if you want icons/text
+    source: "custom_vector",
+    "source-layer": sourceLayer,
+    filter: ["==", "$type", "Point"],
+    paint: {
+      "circle-color": "#ff0000",
+      "circle-radius": 6
+    }
+  });
+
+  // ✅ 2. Show lines using 'line'
+  map.addLayer({
+    id: "custom-lines",
+    type: "line",
+    source: "custom_vector",
+    "source-layer": sourceLayer,
+    filter: ["==", "$type", "LineString"],
+    paint: {
+      "line-color": "#007cbf",
+      "line-width": 3
+    }
+  });
+
+  // ✅ 3. Show polygons using 'fill'
+  map.addLayer({
+    id: "custom-polygons",
+    type: "fill",
+    source: "custom_vector",
+    "source-layer": sourceLayer,
+    filter: ["==", "$type", "Polygon"],
+    paint: {
+      "fill-color": "#00ff00",
+      "fill-opacity": 0.5
+    }
+  });
+});
+
+
+
+</script>
+
+</body>
+</html>
