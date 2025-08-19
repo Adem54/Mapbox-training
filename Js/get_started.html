@@ -464,10 +464,11 @@ const geojson2 = {
     new mapboxgl.Marker(el)
       .setLngLat(feature.geometry.coordinates)
       .setPopup(new mapboxgl.Popup({ offset: 25 }) // Optional popup
-        .setText(`${feature.properties.title}: ${feature.properties.description}`))
+      .setText(`${feature.properties.title}: ${feature.properties.description}`))
       .addTo(map);
-  });
       });
+    
+    });
 
 // add markers to ALL GEOJSON points data
 // for (const feature of geojson.features) {

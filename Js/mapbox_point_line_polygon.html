@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Mapbox GL JS map</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+<style>
+body { margin: 0; padding: 0; }
+#map { position: absolute; top: 0; bottom: 0; width: 100%; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+	mapboxgl.accessToken = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+    const map = new mapboxgl.Map({
+        container: 'map', // container ID
+       style: 'mapbox://styles/mapbox/light-v11', // style URL
+        center: [-68.137343, 45.137451], // starting position
+        zoom: 5 // starting zoom
+    });
+  
+  map.on('load', () => {
+        // Add a data source containing GeoJSON data.
+        map.addSource('maine', {
+            'type': 'geojson',
+            'data': {
+                'type': 'Feature',
+                'geometry': {
+                    'type': 'Polygon',
+                    // These coordinates outline Maine.
+                    'coordinates': [
+                        [
+                            [-67.13734, 45.13745],
+                            [-66.96466, 44.8097],
+                            [-68.03252, 44.3252],
+                            [-69.06, 43.98],
+                            [-70.11617, 43.68405],
+                            [-70.64573, 43.09008],
+                            [-70.75102, 43.08003],
+                            [-70.79761, 43.21973],
+                            [-70.98176, 43.36789],
+                            [-70.94416, 43.46633],
+                            [-71.08482, 45.30524],
+                            [-70.66002, 45.46022],
+                            [-70.30495, 45.91479],
+                            [-70.00014, 46.69317],
+                            [-69.23708, 47.44777],
+                            [-68.90478, 47.18479],
+                            [-68.2343, 47.35462],
+                            [-67.79035, 47.06624],
+                            [-67.79141, 45.70258],
+                            [-67.13734, 45.13745]
+                        ]
+                    ]
+                }
+            }
+        });
+
+         if (!map.getLayer('custom-polygons')) {
+           map.addLayer({
+          id: "custom-polygons",
+          type: "fill",
+          source: "maine",
+          //Zomm-level a gore fill rengini ayarlama-1.yontem
+            //minzoom: 4,   // show from z4...4 zoomdan asagi inince o zaman bu layer i gostermeyecek...bu layer min-max zoom arasinda gosterileck..
+            //maxzoom: 12,  // ...hide at z12 and above..Eger bu min-max zoom kullanirsak asagidaki opactiy icinde  ayrica zoom u kontrol e gerek yok, ya da orda kullanacaksak burda gerek y
+
+          paint: {
+        //    "fill-color": "#00ff00",
+            "fill-color":[
+  "interpolate",
+  ["linear"],
+  ["zoom"],
+  0,
+  "hsl(150, 66%, 71%)",
+  12,
+  "hsl(360, 79%, 31%)",
+  16,
+  "hsl(62, 94%, 54%)"
+],
+           "fill-opacity": 0.8,
+          //Zomm-level a gore fill rengini ayarlama-2.yontem
+      /*        'fill-opacity': [
+      'interpolate', ['linear'], ['zoom'],
+      4, 0.4,   // 40% at z8
+      6, 0.0   // fully transparent by z11+...zoom -level 6 olunca artik opacity 0 olacak ve fill-color hic gozukmemiz olacak ve tamamen transaprant olacak
+    ] */
+          }
+        });
+        }
+    
+
+
+  // 3) (Opsiyonel) Outline..polygon disina kirmizi cizgiyi de farkli bir laye rolarak ekliyoruz
+  //source-layer burda kullanilmaz, source-layer mapbox-studio da olsuturdgumz tilesetId lerde ve dieger url-vector tilset url lerinde kullanilir
+  if (!map.getLayer('maine-outline')) {
+    map.addLayer({
+      id: 'maine-outline',
+      type: 'line',
+      source: 'maine',
+      paint: {
+       // 'line-color': '#ed1b2e',
+        'line-color': '#000',
+        'line-width': 2
+      }
+      // Standard stilde istersen slot: 'top'
+    });
+  }
+
+    map.on('zoom', ()=>{
+      console.log(`Zoom-level: ${map.getZoom()}`);
+    })
+
+
+ // Add the vector tileset as a source.
+ //        url: 'mapbox://examples.8fgz4egr'  AND source-layer:sf2010
+        map.addSource('ethnicity', {
+            type: 'vector',
+            url: 'mapbox://examples.8fgz4egr'
+        });
+
+         map.addLayer({
+    id: "my-custom-points",
+    type: "circle", // or 'symbol' if you want icons/text
+    source: "ethnicity",
+    "source-layer": "sf2010",//source-layer nerde kullaniliyor type i vector olan sourcelerde yani mapbox-studio da ve diger url lerde..
+   // filter: ["==", "$type", "Point"],
+    paint: {
+     // "circle-color": "#ff0000",//#000000
+      // "circle-color": "#000000", // black
+    
+      "circle-color":[
+  "match",
+  ["get", "ethnicity"],
+  ["Asian"],
+  "hsl(0, 89%, 95%)",
+  ["Black"],
+  "hsl(224, 81%, 78%)",
+  ["Hispanic"],
+  "hsl(138, 89%, 75%)",
+  ["Other"],
+  "hsl(227, 88%, 52%)",
+  ["White"],
+  "hsl(66, 81%, 66%)",
+  "#000000"
+],
+      "circle-radius": 3
+    }
+  });
+
+    });
+
+</script>
+
+</body>
+</html>

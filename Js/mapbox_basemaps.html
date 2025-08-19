@@ -75,6 +75,19 @@ const sourceLayer = "my_dataset";
   });
 });
 
+//marker ekliyor direk olarak
+const marker = new mapboxgl.Marker({ color: 'red' })
+  .setLngLat([9.61436, 59.18398])
+  .addTo(map);
+
+new mapboxgl.Popup({ offset: 25 })
+  .setLngLat([9.61436, 59.18398])
+  .setHTML("<h3>Skien</h3><p>Norway</p>")
+  .addTo(map);
+
+
+
+
 
 
 </script>

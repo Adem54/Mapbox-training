@@ -47,13 +47,15 @@ body { margin: 0; padding: 0; }
     // This GeoJSON contains features that include an "icon"
     // property. The value of the "icon" property corresponds
     // to an image in the Mapbox Light style's sprite.
+    //Burda ki icon icn veirlen ifadeler mapbox in kendi kutuphanesinden aliyor...ki bunlari biz zaten mapbox-studio da bir map i template ile actigimizda images-menu sunde goreibliyoruz
     const places = {
         'type': 'FeatureCollection',
         'features': [
             {
                 'type': 'Feature',
                 'properties': {
-                    'icon': 'theatre'
+                    'icon': 'theatre',
+                    'title':'theatre title1'
                 },
                 'geometry': {
                     'type': 'Point',
@@ -63,7 +65,8 @@ body { margin: 0; padding: 0; }
             {
                 'type': 'Feature',
                 'properties': {
-                    'icon': 'theatre'
+                    'icon': 'theatre',
+                     'title':'theatre title2'
                 },
                 'geometry': {
                     'type': 'Point',
@@ -73,7 +76,8 @@ body { margin: 0; padding: 0; }
             {
                 'type': 'Feature',
                 'properties': {
-                    'icon': 'bar'
+                    'icon': 'bar',
+                     'title':'bar title'
                 },
                 'geometry': {
                     'type': 'Point',
@@ -83,7 +87,8 @@ body { margin: 0; padding: 0; }
             {
                 'type': 'Feature',
                 'properties': {
-                    'icon': 'bicycle'
+                    'icon': 'bicycle',
+                     'title':'bicycle title'
                 },
                 'geometry': {
                     'type': 'Point',
@@ -93,7 +98,9 @@ body { margin: 0; padding: 0; }
             {
                 'type': 'Feature',
                 'properties': {
-                    'icon': 'music'
+                    'icon': 'music',
+                    'title':'music title1'
+
                 },
                 'geometry': {
                     'type': 'Point',
@@ -103,7 +110,8 @@ body { margin: 0; padding: 0; }
             {
                 'type': 'Feature',
                 'properties': {
-                    'icon': 'music'
+                    'icon': 'music',
+                     'title':'music title2'
                 },
                 'geometry': {
                     'type': 'Point',
@@ -113,7 +121,8 @@ body { margin: 0; padding: 0; }
             {
                 'type': 'Feature',
                 'properties': {
-                    'icon': 'music'
+                    'icon': 'music',
+                    'title':'music title3'
                 },
                 'geometry': {
                     'type': 'Point',
@@ -158,7 +167,8 @@ body { margin: 0; padding: 0; }
                         // https://docs.mapbox.com/mapbox-gl-js/example/add-image/
                         'icon-image': `${symbol}`,
                         'icon-allow-overlap': true,
-                        'text-field': symbol,
+                        //'text-field': symbol,
+                        'text-field':['get','title'],//git properties den title datasini al....
                         'text-font': [
                             'Open Sans Bold',
                             'Arial Unicode MS Bold'
