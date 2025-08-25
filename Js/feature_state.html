@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<title>Feature State – Çalışır Demo</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
+<style>
+  html, body { margin:0; height:100%; }
+  #map { height:100vh; }
+  #panel {
+    position: fixed; top: 12px; right: 12px; width: 260px;
+    background:#fff; border:1px solid #e5e7eb; border-radius:10px;
+    box-shadow:0 8px 24px rgba(0,0,0,.08);
+    padding:12px; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    z-index: 2;
+  }
+  .btn { display:block; width:100%; padding:8px 10px; margin:6px 0;
+    border:1px solid #d1d5db; border-radius:8px; background:#f9fafb; cursor:pointer; text-align:left; }
+  .btn:hover { background:#f3f4f6; }
+  .muted { color:#6b7280; font-size:12px; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div id="panel">
+  <h3>Demo Kontrol</h3>
+  <div class="muted">Hover: çokgen üstünde gezdir<br>Active: çokgene tıkla<br>Selected: şehir seç</div>
+  <hr>
+  <strong>Şehir seç (selected):</strong>
+  <button class="btn" onclick="selectCity('denver')">Denver</button>
+  <button class="btn" onclick="selectCity('slc')">Salt Lake City</button>
+  <button class="btn" onclick="clearSelected()">Seçimi temizle</button>
+  <hr>
+  <div id="info">Tıklanan (active) yok.</div>
+</div>
+
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+<script>
+  mapboxgl.accessToken = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+
+
+  // --- GeoJSON
+  const statesGeoJSON = {
+    "type":"FeatureCollection",
+    "features":[
+      { "type":"Feature","properties":{"name":"Utah","abbr":"UT"},
+        "geometry":{"type":"Polygon","coordinates":[[
+          [-114.0,42.0], [-109.0,42.0], [-109.0,37.0], [-114.0,37.0], [-114.0,42.0]
+        ]]}},
+      { "type":"Feature","properties":{"name":"Colorado","abbr":"CO"},
+        "geometry":{"type":"Polygon","coordinates":[[
+          [-109.0,41.0], [-102.0,41.0], [-102.0,37.0], [-109.0,37.0], [-109.0,41.0]
+        ]]} }
+    ]
+  };
+
+  const citiesGeoJSON = {
+    "type":"FeatureCollection",
+    "features":[
+      { "type":"Feature","properties":{"name":"Denver","id":"denver"},
+        "geometry":{"type":"Point","coordinates":[-104.9903,39.7392]} },
+      { "type":"Feature","properties":{"name":"Salt Lake City","id":"slc"},
+        "geometry":{"type":"Point","coordinates":[-111.8910,40.7608]} }
+    ]
+  };
+
+  // --- Harita
+  const map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/mapbox/light-v11',
+    center: [-110.5, 39.5],
+    zoom: 5
+  });
+
+  map.on('error', e => console.error('Map error:', e && e.error));
+  map.on('load', () => {
+    // ID garantisi: generateId true → her feature’a runtime id verilir
+    map.addSource('states', { type:'geojson', data: statesGeoJSON, generateId: true });
+    // cities için selected state’i properties.id üzerinden kullanacağız:
+    map.addSource('cities', { type:'geojson', data: citiesGeoJSON, promoteId: 'id' });
+
+    // Fill (getter)
+    map.addLayer({
+      id:'states-fill', type:'fill', source:'states',
+      paint:{
+        'fill-color': [
+          'case',
+          ['boolean',['feature-state','active'],false],   '#1e40af',
+          ['boolean',['feature-state','selected'],false], '#2563eb',
+          ['boolean',['feature-state','hover'],false],    '#60a5fa',
+                                                           '#cbd5e1'
+        ],
+        'fill-opacity': 0.85
+      }
+    });
+
+    // Outline
+    map.addLayer({
+      id:'states-outline', type:'line', source:'states',
+      paint:{ 'line-color':'#1e40af', 'line-width':1 }
+    });
+
+    // Cities (getter)
+    map.addLayer({
+      id:'cities-circle', type:'circle', source:'cities',
+      paint:{
+        'circle-radius': [
+          'case', ['boolean',['feature-state','selected'],false], 10, 5
+        ],
+        'circle-color':'#ef4444',
+        'circle-stroke-color':'#ffffff',
+        'circle-stroke-width':1
+      }
+    });
+
+    // İmleç
+    map.on('mouseenter','states-fill', () => map.getCanvas().style.cursor='pointer');
+    map.on('mouseleave','states-fill', () => map.getCanvas().style.cursor='');
+
+    // --- HOVER
+    let hoveredId = null;
+    map.on('mousemove','states-fill',(e)=>{
+      console.log('mousemove features:', e.features); // debug
+      const id = e.features?.[0]?.id;
+      if (id == null || id === hoveredId) return;
+      if (hoveredId != null) {
+        map.setFeatureState({ source:'states', id: hoveredId }, { hover:false });
+      }
+      map.setFeatureState({ source:'states', id }, { hover:true });
+      hoveredId = id;
+    });
+    map.on('mouseleave','states-fill',()=>{
+      if (hoveredId != null) {
+        map.setFeatureState({ source:'states', id: hoveredId }, { hover:false });
+        hoveredId = null;
+      }
+    });
+
+    // --- CLICK (ACTIVE)
+    let activeId = null;
+    map.on('click','states-fill',(e)=>{
+      console.log('click features:', e.features); // debug
+      const id = e.features?.[0]?.id;
+      if (id == null) return;
+      if (activeId != null) {
+        map.setFeatureState({ source:'states', id: activeId }, { active:false });
+      }
+      map.setFeatureState({ source:'states', id }, { active:true });
+      activeId = id;
+
+      const props = e.features[0].properties || {};
+      const name = props.name || id;
+      document.getElementById('info').textContent = `Active: ${name} (id=${id})`;
+    });
+
+    // --- SELECTED (listeden)
+    window.selectedCityId = null;
+    window.selectCity = function(id){
+      if (window.selectedCityId != null) {
+        map.setFeatureState({ source:'cities', id: window.selectedCityId }, { selected:false });
+      }
+      map.setFeatureState({ source:'cities', id }, { selected:true });
+      window.selectedCityId = id;
+    };
+    window.clearSelected = function(){
+      if (window.selectedCityId != null) {
+        map.setFeatureState({ source:'cities', id: window.selectedCityId }, { selected:false });
+        window.selectedCityId = null;
+      }
+    };
+  });
+</script>
+</body>
+</html>

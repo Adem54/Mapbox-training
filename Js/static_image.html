@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Mapbox GL + Static Image</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+<style>
+  body { margin:0; font-family: system-ui, sans-serif; }
+  /* Haritayı tam ekran yapmak yerine 50vh ile sınırlayalım */
+  #map { width:100%; height:50vh; }
+  .section { padding:16px; }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="section">
+  <h3>📍 Sipariş Konumu (Statik Görsel)</h3>
+  <img
+    src="https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/28.9784,41.0082,12,0,0/600x400?access_token=pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw"
+    alt="İstanbul merkezli statik harita"
+  />
+</div>
+
+<script>
+  mapboxgl.accessToken = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+
+  const map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/mapbox/streets-v12', // <-- ZORUNLU
+    center: [28.9784, 41.0082], // İstanbul (lng, lat)
+    zoom: 10,
+    bearing: 0,
+    pitch: 0
+  });
+
+  // Opsiyonel: merkeze bir marker
+  map.on('load', () => {
+    new mapboxgl.Marker().setLngLat([28.9784, 41.0082]).addTo(map);
+  });
+</script>
+</body>
+</html>
