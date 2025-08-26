@@ -119,9 +119,9 @@ body { margin: 0; padding: 0; }
         map.on('mousemove', 'counties', (e) => {
             // Change the cursor style as a UI indicator.
             map.getCanvas().style.cursor = 'pointer';
-
             // Use the first found feature.
             const feature = e.features[0];
+            console.log("feature.properties.COUNTY: ",feature.properties.COUNTY);//uzerine gittgimz county ismini veriyor
 
             // Query the counties layer visible in the map.
             // Only onscreen features are returned.
@@ -131,9 +131,12 @@ body { margin: 0; padding: 0; }
                 sourceLayer: 'original',
                 filter: ['in', 'COUNTY', feature.properties.COUNTY]
             });
+            console.log(JSON.stringify(relatedCounties))
+
 
             // Remove duplicates by checking for matching FIPS county ID.
             const uniqueCounties = getUniqueFeatures(relatedCounties, 'FIPS');
+            console.log("uniqueCounties",JSON.stringify(uniqueCounties))
 
             // Total the populations of all features.
             const populationSum = uniqueCounties.reduce((memo, feature) => {
@@ -164,7 +167,9 @@ body { margin: 0; padding: 0; }
                 'in',
                 'COUNTY',
                 feature.properties.COUNTY
-            ]);
+            ]);///COUNTY property’si hoverlanan feature’ın COUNTY değeriyle aynı olan feature’ları göster.
+            //Yani faren Utah’taki "Lincoln County" üzerindeyse:counties-highlighted layer’ı sadece "Lincoln County" olan tüm feature’ları çizer.Böylece ekranda hem o county hem de aynı isme sahip diğer county’ler (başka eyaletlerdeki) highlight olur.
+            //mouseenter/mousemove → setFilter ile highlight layer’ı güncelliyorsun, sadece ilgili county(ler) gözüküyor.
 
             // Display a popup with the name of the county.
             popup
@@ -173,12 +178,15 @@ body { margin: 0; padding: 0; }
                 .addTo(map);
         });
 
+        //Burada fare county layer’ının üstünden çıkınca temizlik yapılıyor:
         map.on('mouseleave', 'counties', () => {
-            map.getCanvas().style.cursor = '';
-            popup.remove();
+            map.getCanvas().style.cursor = '';// kursörü geri normal ok yap
+            popup.remove();  // county ismini gösteren popup'ı kapat
             map.setFilter('counties-highlighted', ['in', 'COUNTY', '']);
-            overlay.style.display = 'none';
+            overlay.style.display = 'none';// sağdaki özet paneli gizle
         });
+        //mouseleave → setFilter’ı boş filtreye çeviriyorsun → highlight kayboluyor, popup kapanıyor, overlay gizleniyor.
+        //map.setFilter('counties-highlighted', ['in','COUNTY','']); Bu filtre hiçbir feature ile eşleşmez (COUNTY property’si '' olan yok).Yani highlight layer boş görünür.Böylece kullanıcı fareyi çektiğinde highlight kaybolur.
     });
 </script>
 
