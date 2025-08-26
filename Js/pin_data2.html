@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<title>2) Aynı isimli feature sayımı (querySourceFeatures)</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
+<style>
+  html,body {margin:0;height:100%}
+  #map {height:100vh}
+  #info {position:fixed;top:12px;left:12px;background:#fff;padding:8px 12px;border:1px solid #e5e7eb;border-radius:8px;font-family:system-ui}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="info">Hover bir county…</div>
+
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+<script>
+  mapboxgl.accessToken = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+
+
+  // Mini "county" demo verisi: iki Lincoln, bir Franklin (tam coğrafi doğruluk değil, demo)
+  const counties = {
+    "type":"FeatureCollection",
+    "features":[
+      { "type":"Feature","properties":{"name":"Lincoln1"}, "geometry":{"type":"Polygon","coordinates":[[[28.8,41.0],[29.1,41.0],[29.1,41.2],[28.8,41.2],[28.8,41.0]]]}},
+      { "type":"Feature","properties":{"name":"Lincoln2"}, "geometry":{"type":"Polygon","coordinates":[[[29.2,41.03],[29.5,41.03],[29.5,41.25],[29.2,41.25],[29.2,41.03]]]}},
+      { "type":"Feature","properties":{"name":"Franklin"}, "geometry":{"type":"Polygon","coordinates":[[[28.7,41.25],[29.0,41.25],[29.0,41.45],[28.7,41.45],[28.7,41.25]]]}}
+    ]
+  };
+
+  const map = new mapboxgl.Map({
+    container:'map',
+    style:'mapbox://styles/mapbox/light-v11',
+    center:[29.1,41.2],
+    zoom:10
+  });
+
+  map.on('load', () => {
+    map.addSource('counties', { type:'geojson', data: counties, generateId: true });
+
+    map.addLayer({
+      id:'counties-fill',
+      type:'fill',
+      source:'counties',
+      paint:{
+        'fill-color':'#93c5fd',
+        'fill-opacity':[
+          'case',
+          ['boolean',['feature-state','hover'],false], 0.9,
+                                                     0.6
+        ]
+      }
+    });
+
+    map.addLayer({
+      id:'counties-outline',
+      type:'line',
+      source:'counties',
+      paint:{'line-color':'#1d4ed8','line-width':1}
+    });
+
+    let hoveredId = null;
+    map.on('mousemove','counties-fill',(e)=>{
+      const f = e.features && e.features[0];
+      if (!f) return;
+      const id = f.id;
+      if (id !== hoveredId) {
+        if (hoveredId != null) map.setFeatureState({source:'counties', id: hoveredId}, {hover:false});
+        map.setFeatureState({source:'counties', id}, {hover:true});
+        hoveredId = id;
+      }
+
+      const name = f.properties.name;
+      // YÜKLENMİŞ kaynakta aynı isme sahip olanları say
+      const same = map.querySourceFeatures('counties', { filter: ['==',['get','name'], name] });
+      console.log('relatedCounties count:', same.length, 'for', name);
+      document.getElementById('info').textContent = `${name}: ${same.length} benzer`;
+    });
+
+    map.on('mouseleave','counties-fill',()=>{
+      if (hoveredId != null) {
+        map.setFeatureState({source:'counties', id: hoveredId}, {hover:false});
+        hoveredId = null;
+      }
+      document.getElementById('info').textContent='Hover bir county…';
+    });
+  });
+</script>
+</body>
+</html>

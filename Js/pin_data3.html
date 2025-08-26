@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<title>3) Tilequery API (REST – yakın POI’ler)</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
+<style>
+  html,body {margin:0;height:100%}
+  #map {height:100vh}
+  #panel {position:fixed;top:12px;left:12px;max-width:320px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px;font-family:system-ui;z-index:2}
+  .item{border-top:1px dashed #e5e7eb;padding:6px 0}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+  <strong>Yakın POI (Tilequery)</strong>
+  <div id="list" class="muted">Haritayı sürükle → otomatik sorgu</div>
+</div>
+
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+<script>
+  const TOKEN = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+  mapboxgl.accessToken = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+
+
+  const map = new mapboxgl.Map({
+    container:'map',
+    style:'mapbox://styles/mapbox/streets-v12',
+    center:[28.9784,41.0082],
+    zoom:13
+  });
+
+  async function runTilequery() {
+    const c = map.getCenter();
+    const lng = c.lng.toFixed(6);
+    const lat = c.lat.toFixed(6);
+    // mapbox.mapbox-streets-v8 tileset'inde 'poi_label' source-layer'ı vardır
+    const url = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/tilequery/${lng},${lat}.json?radius=500&limit=10&layers=poi_label&access_token=${TOKEN}`;
+
+    try {
+      const res = await fetch(url);
+      const json = await res.json();
+      const list = document.getElementById('list');
+      if (!json || !json.features) {
+        list.innerHTML = 'Sonuç yok';
+        return;
+      }
+      list.innerHTML = json.features.map(f=>{
+        const n = f.properties.name || '(isimsiz)';
+        const c = f.properties.class || '';
+        return `<div class="item"><b>${n}</b><br><small>${c}</small></div>`;
+      }).join('') || 'Sonuç yok';
+
+    } catch (err) {
+      console.error(err);
+      document.getElementById('list').textContent = 'Hata: ' + err;
+    }
+  }
+
+  map.on('load', runTilequery);
+  map.on('moveend', runTilequery);
+</script>
+</body>
+</html>
