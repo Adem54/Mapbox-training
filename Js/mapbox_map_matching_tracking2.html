@@ -2,7 +2,7 @@
 <html lang="tr">
 <head>
   <meta charset="utf-8" />
-  <title>Mapbox – Araç Takip Simülasyonu (Yumuşatılmış Rota + Araba İkonu)</title>
+  <title>Mapbox – Araç Takip (Tırtıklı İz, Rota Önceden Yok)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
 <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
@@ -13,7 +13,6 @@
       border-radius:8px; box-shadow:0 2px 10px rgba(0,0,0,.1);
       font:14px/1.35 system-ui, -apple-system, Segoe UI, Roboto, sans-serif
     }
-    /* Araba marker'ı (üstten görünüm) */
     .car {
       width:36px; height:36px;
       background-repeat:no-repeat; background-position:center; background-size:contain;
@@ -25,13 +24,16 @@
 </head>
 <body>
 <div id="map"></div>
-<div class="legend">Space: Başlat/Durdur • Daha kavisli rota + bearing'li araba + belirgin çizgi</div>
+<div class="legend">
+  Space: Başlat/Durdur • F: Follow kamera<br>
+  Rota önceden çizilmez; sadece <b>tırtıklı iz</b> kalır.
+</div>
 
 <script>
 	mapboxgl.accessToken = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
 
 
-  // 1) Temel rota (kavisli, DC çevresi)
+  // 1) Kavisli temel rota (DC civarı örnek)
   const baseRoute = [
     [-77.0925, 38.9400],
     [-77.0820, 38.9340],
@@ -55,42 +57,34 @@
   ];
 
   // --- Yardımcılar: mesafe (haversine), bearing, interpolate, densify ---
-  function toRad(d){return d*Math.PI/180}
+  const toRad = d => d * Math.PI / 180;
   function haversine(a,b){
-    const R=6371000;
-    const [lon1,lat1]=a,[lon2,lat2]=b;
+    const R=6371000, [lon1,lat1]=a, [lon2,lat2]=b;
     const dLat=toRad(lat2-lat1), dLon=toRad(lon2-lon1);
     const s=Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
     return 2*R*Math.asin(Math.sqrt(s));
   }
-  function interpolate(a,b,t){
-    // düz interpolasyon (küçük mesafelerde yeterli)
-    return [ a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t ];
-  }
-  function densifyLine(coords, stepMeters=60){
+  function interpolate(a,b,t){ return [ a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t ]; }
+  function densifyLine(coords, stepMeters=50){
     const out=[coords[0]];
     for(let i=0;i<coords.length-1;i++){
       const a=coords[i], b=coords[i+1];
       const d = haversine(a,b);
       const n = Math.max(1, Math.floor(d/stepMeters));
-      for(let k=1;k<=n;k++){
-        out.push(interpolate(a,b,k/n));
-      }
+      for(let k=1;k<=n;k++) out.push(interpolate(a,b,k/n));
     }
     return out;
   }
   function bearingDeg(a,b){
     const [lon1,lat1]=a.map(toRad), [lon2,lat2]=b.map(toRad);
-    const dLon = lon2-lon1;
-    const y = Math.sin(dLon)*Math.cos(lat2);
-    const x = Math.cos(lat1)*Math.sin(lat2)-Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLon);
-    let brng = Math.atan2(y,x)*180/Math.PI; // -180..180
-    brng = (brng+360)%360;
-    return brng;
+    const dLon=lon2-lon1;
+    const y=Math.sin(dLon)*Math.cos(lat2);
+    const x=Math.cos(lat1)*Math.sin(lat2)-Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLon);
+    return ((Math.atan2(y,x)*180/Math.PI)+360)%360;
   }
 
-  // Rota sıklaştır: daha pürüzsüz hareket için
-  const route = densifyLine(baseRoute, 50); // her ~50 m'de bir nokta
+  // Rota sıklaştır (daha pürüzsüz hareket)
+  const route = densifyLine(baseRoute, 45);
 
   // 2) Harita
   const map = new mapboxgl.Map({
@@ -105,80 +99,54 @@
   carEl.className = 'car';
   const car = new mapboxgl.Marker({ element: carEl }).setLngLat(route[0]);
 
-  // 4) Kaynaklar: tüm rota + ilerlenen iz
-  const fullRouteGeo = {
-    type:'Feature',
-    geometry:{ type:'LineString', coordinates: route }
-  };
+  // 4) Yalnızca "ilerlenen iz" kaynağı (başta tek nokta)
   let progressedGeo = {
     type:'Feature',
     geometry:{ type:'LineString', coordinates: [ route[0] ] }
   };
 
   map.on('load', () => {
-    // Glow (arka parlama)
-    map.addSource('route-glow', { type:'geojson', data: fullRouteGeo });
-    map.addLayer({
-      id:'route-glow',
-      type:'line',
-      source:'route-glow',
-      paint:{
-        'line-color':'#60a5fa',
-        'line-width': 14,
-        'line-opacity': 0.35,
-        'line-blur': 6
-      }
-    });
-
-    // Casing (koyu dış hat)
-    map.addSource('route-casing', { type:'geojson', data: fullRouteGeo });
-    map.addLayer({
-      id:'route-casing',
-      type:'line',
-      source:'route-casing',
-      paint:{
-        'line-color':'#0f172a',
-        'line-width': 10,
-        'line-opacity': 0.7
-      }
-    });
-
-    // Ana hat (parlak)
-    map.addSource('route-full', { type:'geojson', data: fullRouteGeo });
-    map.addLayer({
-      id:'route-full',
-      type:'line',
-      source:'route-full',
-      paint:{
-        'line-color':'#38bdf8',
-        'line-width': 6
-      }
-    });
-
-    // İlerlenen iz
+    // Tırtıklı iz katmanı
     map.addSource('route-progressed', { type:'geojson', data: progressedGeo });
     map.addLayer({
       id:'route-progressed',
       type:'line',
       source:'route-progressed',
       paint:{
-        'line-color':'#22c55e',
-        'line-width': 6
+        //'line-color':'#16a34a',
+        'line-color':'#2003fc',
+        'line-width': 6,
+        'line-dasharray': [3, 3],  // tırtıklı görünüm
+        'line-opacity': 0.95
       }
     });
+
+    // Hafif glow (opsiyonel) – sadece iz için, ön rota yok
+    map.addLayer({
+      id:'route-progressed-glow',
+      type:'line',
+      source:'route-progressed',
+      paint:{
+        'line-color':'#22c55e',
+        'line-width': 12,
+        'line-opacity': 0.18,
+        'line-blur': 6
+      }
+    }, 'route-progressed'); // altta kalsın
 
     // Marker’ı ekle
     car.addTo(map);
 
-    // Kamerayı rotaya sığdır
+    // Kamera başlangıç
     const bounds = new mapboxgl.LngLatBounds();
     route.forEach(c => bounds.extend(c));
-    map.fitBounds(bounds, { padding: 50 });
+    map.fitBounds(bounds, { padding: 60 });
 
     // 5) Simülasyon
     let idx = 0;
     let playing = true;
-    const stepMs = 400; // 1 sn
+    let follow = false;   // F ile aç/kapat
+    const stepMs = 100;  // 1 saniye
 
     function step(){
       if(!playing) return;
@@ -187,16 +155,19 @@
       const from = route[idx];
       const to   = route[idx+1];
 
-      // bearing hesapla ve arabayı döndür
+      // bearing ile arabayı döndür
       const br = bearingDeg(from, to);
       carEl.style.transform = `rotate(${br}deg)`;
 
-      // marker'ı hedefe taşı (basit animasyon)
+      // marker'ı animasyonla taşı
       animateMarker(from, to, stepMs*0.9);
 
       // iz güncelle
       progressedGeo.geometry.coordinates.push(to);
       map.getSource('route-progressed').setData(progressedGeo);
+
+      // follow modu
+      if(follow) map.easeTo({ center: to, duration: stepMs*0.9 });
 
       idx++;
       setTimeout(step, stepMs);
@@ -206,9 +177,9 @@
       const start = performance.now();
       function frame(now){
         const t = Math.min(1, (now - start)/duration);
-        const lng = a[0] + (b[0]-a[0])*t;
-        const lat = a[1] + (b[1]-a[1])*t;
-        car.setLngLat([lng,lat]);
+        const lng = a[0] + (b[0]-a[0]) * t;
+        const lat = a[1] + (b[1]-a[1]) * t;
+        car.setLngLat([lng, lat]);
         if(t<1) requestAnimationFrame(frame);
       }
       requestAnimationFrame(frame);
@@ -217,12 +188,14 @@
     // başlat
     step();
 
-    // Space ile dur/başlat
+    // Kısayollar: Space (play/pause), F (follow)
     window.addEventListener('keydown', (e)=>{
       if(e.code === 'Space'){
         playing = !playing;
         if(playing) step();
         e.preventDefault();
+      } else if (e.key.toLowerCase() === 'f') {
+        follow = !follow;
       }
     });
   });
