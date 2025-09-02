@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>POI Popup + Water Toggle</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+<link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+<script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+<style>
+  html, body, #map { height:100%; margin:0; }
+  .hint { position:absolute; z-index:1; top:8px; left:8px; background:#fff; padding:6px 10px; border-radius:6px; font:14px/1.3 system-ui,sans-serif; }
+</style>
+</head>
+<body>
+<div class="hint">POI'ye tıkla: popup açılır. Haritanın boş bir yerine tıkla: su rengi yeşil ↔ mavi değişir.</div>
+<div id="map"></div>
+<script>
+  const TOKEN = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+
+mapboxgl.accessToken = TOKEN;
+
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/streets-v12',
+  center: [10.243, 59.209], // Skien civarı
+  zoom: 13 // POI'lerin görünmesi için biraz yakın başlayalım
+});
+
+map.on('load', () => {
+  const layers = map.getStyle().layers;
+  // Hepsini görelim:
+  console.table(layers.map(l => ({ id: l.id, type: l.type, source: l.source, sourceLayer: l['source-layer'] })));
+  // Sadece POI ile ilgili symbol layer'ları görmek:
+  const pois = layers.filter(l => l.type === 'symbol' && /poi/i.test(l.id));
+  console.table(pois.map(l => ({ id: l.id, source: l.source, sourceLayer: l['source-layer'] })));
+
+
+   if (map.getLayer('poi-label')) {
+    map.setPaintProperty('poi-label', 'text-color', '#f50a0a');//TUM POI DATALARI, SYMBOL-TEXTLERI RED GOZUKECEK VE UZERINE GELINCE PARMAK-GIBI CURSOR POINTER OLUYOR..YANI HEM BU RENKTEN HEM DE ICON-CURSON POINTLER OLMASINDAN BU LAYERIN SYMBOL-LAYER IN TEXTLERINI GOREBILECEGIZ....ANLAYABILECEGIZ HARITA UZERINDEN
+    map.setPaintProperty('poi-label', 'text-halo-color', '#ffffff');
+  }
+
+
+
+  // 1) POI layer id'sini sağlam şekilde bul (farklı stillerde isim değişebilir)
+  const styleLayers = map.getStyle().layers;
+  let poiLayerId = ['poi-label', 'poi', 'poi-labels'].find(id => map.getLayer(id));
+  if (!poiLayerId) {
+    const guess = styleLayers.find(l => l.type === 'symbol' && /poi/i.test(l.id));
+    if (guess) poiLayerId = guess.id;
+  }
+
+  // 2) Water rengini başta YEŞİL yap, sonra tıklayınca toggle edelim
+  const waterLayerId = 'water';
+  let waterIsGreen = true;
+  if (map.getLayer(waterLayerId)) {
+    map.setPaintProperty(waterLayerId, 'fill-color', '#22c55e'); // yeşil
+  }
+
+  // 3) Haritaya tek bir click handler: önce POI var mı bak; varsa POPUP.
+  //
+  //    Yoksa su rengini toggle et (yeşil <-> mavi).
+  map.on('click', (e) => {
+    //Anında kontrol: Tıkladığın noktada POI var mı?
+      const feats = map.queryRenderedFeatures(e.point, { layers: ['poi-label'] });
+      console.log(feats.length ? 'POI var' : 'POI yok', feats[0]?.properties);
+    /*
+    {
+        "sizerank": 16,
+        "type": "Supermarket",
+        "name_script": "Latin",
+        "category_en": "Supermarket",
+        "maki": "grocery",
+        "filterrank": 1,
+        "iso_3166_1": "NO",
+        "iso_3166_2": "NO-07",
+        "category_zh-Hans": "超市",
+        "class": "food_and_drink_stores",
+        "name": "Mattorget"
+    }
+    */
+
+    // Eğer POI layer'ı bulunamadıysa direkt su rengini toggle et
+    if (!poiLayerId || !map.getLayer(poiLayerId)) {
+      toggleWater();
+      return;
+    }
+
+    // Tıklanan noktada bu layer'dan feature var mı?
+    const features = map.queryRenderedFeatures(e.point, { layers: [poiLayerId] });
+    if (features && features.length) {
+      const f = features[0];
+      const props = f.properties || {};
+      const poiName = props.name || props.name_en || props.name_int || 'İsimsiz POI';
+
+      new mapboxgl.Popup()
+        .setLngLat(e.lngLat)
+        .setHTML(`<b>${poiName}</b>`)
+        .addTo(map);
+    } else {
+      // POI yoksa su rengini değiştir
+      toggleWater();
+    }
+  });
+
+  // Hover'da imleci el işareti yap (sadece POI üstünde)
+  if (poiLayerId && map.getLayer(poiLayerId)) {
+    map.on('mouseenter', poiLayerId, () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', poiLayerId, () => map.getCanvas().style.cursor = '');
+  }
+
+  function toggleWater() {
+    if (!map.getLayer(waterLayerId)) return;
+    if (waterIsGreen) {
+      map.setPaintProperty(waterLayerId, 'fill-color', '#3b82f6'); // mavi
+    } else {
+      map.setPaintProperty(waterLayerId, 'fill-color', '#22c55e'); // yeşil
+    }
+    waterIsGreen = !waterIsGreen;
+  }
+});
+</script>
+</body>
+</html>

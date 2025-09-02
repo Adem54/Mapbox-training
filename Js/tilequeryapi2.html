@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<title>Tilequery: Yakın POI'ler</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%} #map{height:100%}
+  #panel{position:fixed;top:10px;left:10px;max-width:340px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px;font-family:system-ui;z-index:2}
+  .item{padding:6px 0;border-top:1px dashed #e5e7eb}
+  .muted{color:#64748b;font-size:12px}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">Haritaya tıkla: 100 m içindeki POI’leri getir.</div>
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+<script>
+  const TOKEN = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+
+  mapboxgl.accessToken = TOKEN;
+
+  const map = new mapboxgl.Map({
+    container:'map',
+    style:'mapbox://styles/mapbox/streets-v12',
+    center:[28.9784,41.0082], zoom:14
+  });
+
+  const markers = [];
+  function clearMarkers(){ while(markers.length){ markers.pop().remove(); } }
+
+  map.on('click', async (e)=>{
+    const {lng,lat} = e.lngLat;
+    clearMarkers();
+    const url = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/tilequery/${lng},${lat}.json?radius=100&limit=15&layers=poi_label&access_token=${TOKEN}`;
+    const res = await fetch(url);
+    const json = await res.json();
+
+    const panel = document.getElementById('panel');
+    const items = (json.features||[]).map((f,i)=>{
+      const p = f.properties || {};
+      const name = p.name || '(isimsiz)';
+      const klass = p.class || '';
+      const dist = p.tilequery?.distance?.toFixed(1);
+      const coords = f.geometry?.coordinates;
+      if (coords){
+        const m = new mapboxgl.Marker().setLngLat(coords)
+          .setPopup(new mapboxgl.Popup().setHTML(`<b>${name}</b><br><span class="muted">${klass} • ${dist} m</span>`))
+          .addTo(map);
+        markers.push(m);
+      }
+      return `<div class="item"><b>${i+1}. ${name}</b><br><span class="muted">${klass} • ${dist} m</span></div>`;
+    });
+
+    panel.innerHTML = items.length ? items.join('') : 'Sonuç yok.';
+  });
+</script>
+</body>
+</html>
+
+
+<!-- 
+Yakınımdaki POI’ler” — tıkla, 100 m yarıçapta en yakın 15 noktayı listele
+Kullanım: restoran/market vb. “yakındakiler” listesi.
+layers=poi_label, radius=100, limit=15
+-->

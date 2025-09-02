@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<title>Tilequery: Yakın Yol ve Sınıfı (Snap-to-road)</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%} #map{height:100%}
+  #panel{position:fixed;top:10px;left:10px;max-width:360px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px;font-family:system-ui;z-index:2}
+  .muted{color:#64748b;font-size:12px}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">Haritaya tıkla: 30 m içinde en yakın yolu bul.</div>
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+<script>
+  const TOKEN = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+
+  mapboxgl.accessToken = TOKEN;
+
+  const map = new mapboxgl.Map({
+    container:'map',
+    style:'mapbox://styles/mapbox/light-v11',
+    center:[28.9784,41.0082], zoom:14
+  });
+
+  map.on('load', ()=>{
+    map.addSource('snap-line',{ type:'geojson', data:{ type:'FeatureCollection', features:[] }});
+    map.addLayer({ id:'snap-line', type:'line', source:'snap-line',
+      paint:{ 'line-color':'#111','line-width':2.5 }
+    });
+  });
+
+  let clickMarker, snapMarker;
+
+  map.on('click', async (e)=>{
+    const {lng,lat} = e.lngLat;
+    if (clickMarker) clickMarker.remove();
+    if (snapMarker) snapMarker.remove();
+    map.getSource('snap-line').setData({ type:'FeatureCollection', features:[] });
+
+    clickMarker = new mapboxgl.Marker({color:'#ef4444'}).setLngLat([lng,lat]).addTo(map);
+
+    const url = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/tilequery/${lng},${lat}.json?radius=30&limit=1&layers=road&access_token=${TOKEN}`;
+    const res = await fetch(url);
+    const json = await res.json();
+    const f = json.features?.[0];
+    const panel = document.getElementById('panel');
+
+    if (!f){
+      panel.textContent = 'Yakın yol bulunamadı (30 m içinde yok).';
+      return;
+    }
+
+    const snapped = f.geometry.coordinates; // yola en yakın nokta
+    const dist = f.properties.tilequery?.distance?.toFixed(1);
+    const cls  = f.properties.class || '';
+    const name = f.properties.name || '(isim yok)';
+
+    // Snap marker
+    snapMarker = new mapboxgl.Marker().setLngLat(snapped)
+      .setPopup(new mapboxgl.Popup().setHTML(`<b>${name}</b><br><span class="muted">${cls} • ${dist} m</span>`))
+      .addTo(map);
+
+    // Click → snap arasına çizgi
+    const line = {
+      type:'Feature',
+      geometry:{ type:'LineString', coordinates:[[lng,lat], snapped] },
+      properties:{}
+    };
+    map.getSource('snap-line').setData({ type:'FeatureCollection', features:[line] });
+
+    panel.innerHTML = `<b>En yakın yol:</b> ${name}<br><span class="muted">Sınıf: ${cls} • Mesafe: ${dist} m</span>`;
+  });
+</script>
+</body>
+</html>
+
+
+
+<!-- 
+
+“Yol Yakalama (Snap-to-road)” — tıkla, en yakın yolu ve sınıfını bul + tıklama → yola çizgi
+Kullanım: teslimat/varış noktası düzeltme, “yakın yol hangisi?”
+30 m daire icindeki en yakin yolu bul....
+layers=road, radius=30, limit=1 (en yakını)
+
+-->

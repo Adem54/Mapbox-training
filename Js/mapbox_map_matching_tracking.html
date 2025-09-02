@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Map Matching Tracking Demo</title>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+  <style>
+    body { margin:0; padding:0; }
+    #map { position:absolute; top:0; bottom:0; width:100%; }
+  </style>
+</head>
+<body>
+<div id="map"></div>
+
+<script>
+//mapboxgl.accessToken = 'YOUR_ACCESS_TOKEN';
+	mapboxgl.accessToken = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+
+
+const map = new mapboxgl.Map({
+  container: 'map',
+  style: 'mapbox://styles/mapbox/streets-v12',
+  center: [-77.0365, 38.895],
+  zoom: 12
+});
+
+// Örnek ham GPS noktaları (aracın ilerlediği rota)
+const gpsCoords = [
+  [-77.0365, 38.895],
+  [-77.033, 38.9],
+  [-77.04, 38.905],
+  [-77.05, 38.91]
+];
+
+// Map Matching API çağrısı
+const coordsString = gpsCoords.map(c => c.join(',')).join(';');
+const url = `https://api.mapbox.com/matching/v5/mapbox/driving/${coordsString}?geometries=geojson&access_token=${mapboxgl.accessToken}`;
+
+fetch(url)
+  .then(res => res.json())
+  .then(data => {
+    const matched = data.matchings[0].geometry;
+
+    // Layer ekle
+    map.on('load', () => {
+      map.addSource('route', { type: 'geojson', data: matched });
+      map.addLayer({
+        id: 'route',
+        type: 'line',
+        source: 'route',
+        paint: { 'line-color': '#ff0000', 'line-width': 4 }
+      });
+
+      // Başlangıç marker
+      new mapboxgl.Marker({ color: 'green' })
+        .setLngLat(gpsCoords[0])
+        .addTo(map);
+
+      // Bitiş marker
+      new mapboxgl.Marker({ color: 'blue' })
+        .setLngLat(gpsCoords[gpsCoords.length - 1])
+        .addTo(map);
+
+      // Kamerayı fit et
+      const bounds = new mapboxgl.LngLatBounds();
+      gpsCoords.forEach(c => bounds.extend(c));
+      map.fitBounds(bounds, { padding: 50 });
+    });
+  });
+</script>
+</body>
+</html>

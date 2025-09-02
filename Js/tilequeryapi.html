@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<title>Tilequery: Yakın POI’ler</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%} #map{height:100%}
+  #panel{position:fixed;top:10px;left:10px;max-width:320px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px;font-family:system-ui;z-index:2}
+  .item{border-top:1px dashed #e5e7eb;padding:6px 0}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">Haritaya tıklayın…</div>
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+<script>
+  const TOKEN = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+
+  mapboxgl.accessToken = TOKEN;
+
+  const map = new mapboxgl.Map({
+    container:'map',
+    style:'mapbox://styles/mapbox/streets-v12',
+    center:[28.9784,41.0082], zoom:14
+  });
+
+  map.on('load', ()=>{
+    const panel = document.getElementById('panel');
+    map.on('click', async (e)=>{
+      const {lng,lat} = e.lngLat;
+      const url = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/tilequery/${lng},${lat}.json?radius=50&limit=10&layers=poi_label&access_token=${TOKEN}`;
+      panel.textContent = 'Yükleniyor…';
+      try{
+        const res = await fetch(url);
+        const json = await res.json();
+        panel.innerHTML = (json.features||[]).map(f=>{
+          const n = f.properties.name || '(isimsiz)';
+          const c = f.properties.class || '';
+          const d = f.properties.tilequery?.distance?.toFixed(1);
+          return `<div class="item"><b>${n}</b><br><small>${c} • ${d} m</small></div>`;
+        }).join('') || 'Sonuç yok.';
+      }catch(err){
+        panel.textContent = 'Hata: '+err;
+      }
+    });
+  });
+</script>
+</body>
+</html>
+<!-- 
+
+Haritaya tıklayınca Tilequery çağrılır, 50 m yarıçap içinde poi_label’dan en yakın 10 sonucu listeler.
+Tilequery API: Ekranda yüklenmemiş olsa bile sunucudan “bu noktaya yakın ne var?” (limit=50).
+-->

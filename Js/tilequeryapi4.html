@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8" />
+<title>Tilequery: Park içinde miyim? (Point-in-Polygon)</title>
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%} #map{height:100%}
+  #panel{position:fixed;top:10px;left:10px;max-width:340px;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px;font-family:system-ui;z-index:2}
+  .ok{color:#16a34a}.no{color:#dc2626}.muted{color:#64748b;font-size:12px}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">Haritaya tıkla: Tam o nokta park/landuse içinde mi?</div>
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+<script>
+  
+  const TOKEN = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+  mapboxgl.accessToken = TOKEN;
+
+  const map = new mapboxgl.Map({
+    container:'map',
+    style:'mapbox://styles/mapbox/standard',
+    center:[-122.42901,37.80633], zoom:14
+  });
+
+  let marker;
+
+  map.on('click', async (e)=>{
+    const {lng,lat} = e.lngLat;
+    if (marker) marker.remove();
+    marker = new mapboxgl.Marker({color:'#111'}).setLngLat([lng,lat]).addTo(map);
+
+    // radius=0 → point-in-polygon
+    const url = `https://api.mapbox.com/v4/mapbox.mapbox-streets-v8/tilequery/${lng},${lat}.json?radius=0&layers=landuse,landuse_overlay&access_token=${TOKEN}`;
+    const res = await fetch(url);
+    const json = await res.json();
+    const feats = json.features || [];
+
+    const panel = document.getElementById('panel');
+
+    if (!feats.length){
+      panel.innerHTML = `<b class="no">İçinde değil</b><br><span class="muted">Bu nokta herhangi bir landuse/park poligonunun içinde değil.</span>`;
+      return;
+    }
+
+    // İçindeyse distance=0 olarak gelir; layer/type bilgilerini göster
+    const rows = feats.map(f=>{
+      const layer = f.properties.tilequery?.layer;
+      const geom  = f.properties.tilequery?.geometry; // orijinal tip (polygon olmalı)
+      const klass = f.properties.class || f.properties.type || '';
+      return `<li>${layer} • ${klass} <span class="muted">(${geom})</span></li>`;
+    }).join('');
+
+    panel.innerHTML = `<b class="ok">İçinde</b><br><ul>${rows}</ul><span class="muted">distance=0 → polygon içinde.</span>`;
+  });
+</script>
+</body>
+</html>
+
+
+
+
+<!-- 
+Park İçinde miyim?” — point-in-polygon (radius=0), sonucu renkli göster
+
+Kullanım: konum bir park/yeşil alan içinde mi? (örn. fiyat/izin kuralı)
+
+layers=landuse,landuse_overlay, radius=0 = tam içindeyse döner (point-in-polygon)
+
+-->

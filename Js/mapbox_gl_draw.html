@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Mapbox GL JS Draw Example</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+  <!-- Mapbox GL JS CSS -->
+  <link
+    href="https://api.mapbox.com/mapbox-gl-js/v2.16.1/mapbox-gl.css"
+    rel="stylesheet"
+  />
+
+  <!-- Mapbox Draw CSS -->
+  <link
+    href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css"
+    rel="stylesheet"
+  />
+
+  <style>
+    body { margin: 0; padding: 0; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <!-- Mapbox GL JS -->
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.16.1/mapbox-gl.js"></script>
+  <!-- Mapbox Draw -->
+  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
+
+  <script>
+	mapboxgl.accessToken = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+
+
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: [9.6, 59.2], // Skien
+      zoom: 12
+    });
+
+    // Draw kontrolünü ekle
+    const draw = new MapboxDraw({
+      displayControlsDefault: false,
+      controls: {
+        polygon: true,
+        line_string: true,
+        point: true,
+        trash: true
+      }
+    });
+    map.addControl(draw);
+
+    // Eventler
+    map.on('draw.create', e => console.log('created:', e.features));
+    map.on('draw.update', e => console.log('updated:', e.features));
+    map.on('draw.delete', e => console.log('deleted:', e.features));
+  </script>
+</body>
+</html>
