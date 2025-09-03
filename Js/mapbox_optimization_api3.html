@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Optimization v1 — Real-life pickup/dropoff + deliveries (Oslo)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <!-- Mapbox GL JS v3.14.0 -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+  <style>
+    :root { --b:#e5e7eb; --t:#111827; --m:#2563eb; --ok:#16a34a; --mut:#6b7280; }
+    *{box-sizing:border-box} body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--t)}
+    #app{display:grid;grid-template-columns:380px 1fr;height:100vh}
+    #side{border-right:1px solid var(--b);padding:14px;overflow:auto}
+    #map{width:100%;height:100%}
+    h3{margin:.2rem 0 .6rem} .sub{font-size:12px;color:var(--mut);margin:6px 0 12px}
+    button{padding:8px 10px;border:1px solid var(--b);border-radius:10px;background:#fff;cursor:pointer}
+    button:hover{background:#f8fafc} .row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+    .card{border:1px solid var(--b);border-radius:12px;padding:10px;margin:10px 0}
+    .list .item{padding:8px;border:1px dashed var(--b);border-radius:10px;margin:6px 0}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;margin-left:6px}
+    .legend{font-size:12px;margin-top:6px}
+    .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="side">
+    <h3>Optimization v1 — “Real-life” single-vehicle plan</h3>
+    <div class="sub">Start at depot, visit deliveries + pickup→dropoff pairs, end at garage. Draws the optimized route and lists stop order with ETAs.</div>
+
+    <div class="card">
+      <div class="row">
+        <button id="runBtn">Optimize & Draw</button>
+        <button id="resetBtn">Reset</button>
+      </div>
+      <div id="info" class="sub"></div>
+      <div class="legend">
+        <span class="dot" style="background:#10b981"></span>Start (Depot) /
+        <span class="dot" style="background:#ef4444"></span>Delivery /
+        <span class="dot" style="background:#f59e0b"></span>Pickup /
+        <span class="dot" style="background:#8b5cf6"></span>Dropoff /
+        <span class="dot" style="background:#0ea5e9"></span>End (Garage)
+      </div>
+      <div id="list" class="list"></div>
+    </div>
+
+    <div class="sub mono">
+      Profile: <b>mapbox/driving-traffic</b> • Params: <b>roundtrip=false</b>, <b>source=first</b>, <b>destination=last</b>, <b>distributions=1,2;4,5</b><br/>
+      Note: v1 supports pickups (via <i>distributions</i>) but not time windows; for time windows & capacities use Optimization v2 (Public Beta).
+    </div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script>
+  // ====================== CONFIG ======================
+	mapboxgl.accessToken = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+
+
+  // Real-life-ish Oslo scenario (lon, lat)
+  // Index legend:
+  // 0: Depot (start)      1: Pickup A     2: Dropoff A     3: Delivery 1
+  // 4: Pickup B           5: Dropoff B    6: Delivery 2    7: Garage (end)
+  const points = [
+    { id:0,  type:'start',   name:'Depot (Oslo S)',          coord:[10.7530,59.9112], color:'#10b981' },
+    { id:1,  type:'pickup',  name:'Pickup A (near Karl Johans gate)', coord:[10.7560,59.9140], color:'#f59e0b' },
+    { id:2,  type:'dropoff', name:'Dropoff A (Grünerløkka)', coord:[10.7595,59.9221], color:'#8b5cf6' },
+    { id:3,  type:'delivery',name:'Delivery #1 (Rådhus)',    coord:[10.7330,59.9133], color:'#ef4444' },
+    { id:4,  type:'pickup',  name:'Pickup B (Frogner Park)', coord:[10.7069,59.9270], color:'#f59e0b' },
+    { id:5,  type:'dropoff', name:'Dropoff B (MUNCH Museum)',coord:[10.7634,59.9050], color:'#8b5cf6' },
+    { id:6,  type:'delivery',name:'Delivery #2 (Ullevaal area)', coord:[10.7900,59.9340], color:'#ef4444' },
+    { id:7,  type:'end',     name:'Garage (Ullevaal)',       coord:[10.7360,59.9483], color:'#0ea5e9' }
+  ];
+  // distributions pairs: pickupIndex,dropoffIndex
+  const distributions = ['1,2','4,5']; // "pickups before dropoffs" constraint
+
+  // ====================== MAP ======================
+  const map = new mapboxgl.Map({
+    container:'map',
+    style:'mapbox://styles/mapbox/streets-v12',
+    center:[10.742,59.919], zoom:12.4
+  });
+
+  // place markers
+  const markers = [];
+  function drawMarkers(){
+    markers.forEach(m=>m.remove()); markers.length = 0;
+    points.forEach(p=>{
+      const el = document.createElement('div');
+      el.style.width = '14px'; el.style.height='14px'; el.style.borderRadius='50%';
+      el.style.background = p.color; el.style.border='2px solid #fff'; el.title = `${p.name} [${p.type}]`;
+      const m = new mapboxgl.Marker({element:el}).setLngLat(p.coord)
+        .setPopup(new mapboxgl.Popup({offset:18}).setHTML(`<b>${p.name}</b><br><span class="mono">${p.coord[0]}, ${p.coord[1]}</span><br><i>${p.type}</i>`))
+        .addTo(map);
+      markers.push(m);
+    });
+  }
+
+  function fitToAll(){
+    const b = new mapboxgl.LngLatBounds(points[0].coord, points[0].coord);
+    points.forEach(p => b.extend(p.coord));
+    map.fitBounds(b, { padding: 60, duration: 600 });
+  }
+
+  // ====================== OPTIMIZATION (v1) ======================
+  async function runOptimization(){
+    clearRoute();
+    document.getElementById('info').textContent = 'Optimizing…';
+
+    // Build coordinate string
+    const coordStr = points.map(p => `${p.coord[0]},${p.coord[1]}`).join(';');
+
+    // approaches=curb;... (same length as coordinates)
+   const approaches = points.map(() => 'curb').join(';'); // 8 nokta → 8 kez 'curb'
+
+const url = `https://api.mapbox.com/optimized-trips/v1/mapbox/driving-traffic/${coordStr}`
+  + `?roundtrip=false&source=first&destination=last`
+  + `&distributions=${distributions.join(';')}`          // ✅ encode etme
+  + `&steps=true`                                        // ✅ approaches ile şart
+  + `&geometries=geojson&overview=full`
+  + `&approaches=${approaches}`                          // ✅ encode etme
+  + `&annotations=duration,distance&language=en`
+  + `&access_token=${mapboxgl.accessToken}`;
+
+
+    const res = await fetch(encodeURI(url));
+    const data = await res.json();
+
+    if (data.code !== 'Ok' || !data.trips || !data.trips[0]) {
+      document.getElementById('info').innerHTML = `<span style="color:#ef4444">Error:</span> ${data.code || 'No trip'} ${data.message || ''}`;
+      console.error('Optimization error', data); return;
+    }
+
+    const trip = data.trips[0]; // optimal route
+    drawRoute(trip.geometry);
+    renderOrder(trip, data.waypoints);
+  }
+
+  // ====================== RENDER: route + ordered stops ======================
+  function clearRoute(){
+    if (map.getLayer('opt-route')) map.removeLayer('opt-route');
+    if (map.getSource('opt-src')) map.removeSource('opt-src');
+    const list = document.getElementById('list'); list.innerHTML = '';
+  }
+
+  function drawRoute(geojson){
+    map.addSource('opt-src', { type:'geojson', data: geojson });
+    map.addLayer({
+      id:'opt-route', type:'line', source:'opt-src',
+      paint:{ 'line-width':6, 'line-color':'#2563eb', 'line-opacity':0.9 }
+    });
+    // fit to route
+    const coords = geojson.coordinates;
+    const b = coords.reduce((bb,c)=>bb.extend(c), new mapboxgl.LngLatBounds(coords[0], coords[0]));
+    map.fitBounds(b, { padding: 60, duration: 700 });
+  }
+
+  function fmtMin(sec){ const m = Math.round(sec/60); return m<1 ? `${Math.round(sec)} sec` : `${m} min`; }
+
+  function renderOrder(trip, waypoints){
+    // Map input index -> label/type
+    const meta = Object.fromEntries(points.map(p => [p.id, p]));
+    // waypoints[] is in input order but carries 'waypoint_index' (visit order)
+    const ordered = waypoints
+      .map((w, idx) => ({ inputIndex: idx, order: w.waypoint_index, location: w.location }))
+      .filter(x => x.order != null)
+      .sort((a,b)=>a.order - b.order);
+
+    // Compute cumulative ETAs from legs[]
+    // legs.length == orderedCount - 1
+    const legs = trip.legs || [];
+    let cum = 0;
+    const rows = ordered.map((o, i) => {
+      const m = meta[o.inputIndex];
+      const eta = i === 0 ? 0 : (cum += (legs[i-1]?.duration || 0));
+      return { i, inputIndex:o.inputIndex, name:m.name, type:m.type, eta, coord: m.coord, color:m.color };
+    });
+
+    const list = document.getElementById('list'); list.innerHTML = '';
+    const info = document.getElementById('info');
+    info.innerHTML = `Total: <b>${fmtMin(trip.duration)}</b> • Distance: <b>${(trip.distance/1000).toFixed(1)} km</b> • Stops: <b>${rows.length}</b>`;
+
+    rows.forEach((r, idx) => {
+      const div = document.createElement('div'); div.className = 'item';
+      const dot = `<span class="dot" style="background:${r.color}"></span>`;
+      div.innerHTML = `${dot}<b>${idx+1}.</b> ${r.name} <span class="badge">${r.type}</span><br><span class="mono">${r.coord[0].toFixed(5)}, ${r.coord[1].toFixed(5)}</span> — ETA ${fmtMin(r.eta)}`;
+      list.appendChild(div);
+    });
+  }
+
+  // ====================== UI ======================
+  document.getElementById('runBtn').onclick = runOptimization;
+  document.getElementById('resetBtn').onclick = () => { clearRoute(); drawMarkers(); fitToAll(); document.getElementById('info').textContent=''; };
+
+  map.on('load', () => { drawMarkers(); fitToAll(); });
+</script>
+</body>
+</html>

@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <title>Matrix API — En Yakın Noktalar (ETA Sıralı)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Mapbox GL JS -->
+<link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+  <!-- Geocoder (adres arama) -->
+
+  
+  
+    {/* Geocoder plugin */}
+<script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.1-dev/mapbox-gl-geocoder.min.js"></script>
+<link
+  rel="stylesheet"
+  href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.1-dev/mapbox-gl-geocoder.css"
+  type="text/css"
+/>
+  
+  <style>
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+    #app { display:grid; grid-template-columns: 360px 1fr; height:100vh; }
+    #sidebar { border-right:1px solid #e5e7eb; padding:12px; overflow:auto; }
+    #map { width:100%; height:100%; }
+    .item { padding:10px; border:1px solid #e5e7eb; border-radius:10px; margin-bottom:8px; cursor:pointer; }
+    .item:hover { background:#f8fafc; }
+    .title { font-weight:600; }
+    .eta { font-size:12px; opacity:0.8; }
+    .legend { font-size:12px; color:#6b7280; margin:8px 0 6px; }
+    .btn { display:inline-block; padding:6px 10px; border-radius:8px; border:1px solid #e5e7eb; cursor:pointer; margin:6px 0; }
+    .btn:hover { background:#f8fafc; }
+    .pill { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; margin-left:6px; }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="sidebar">
+    <div id="geocoder"></div>
+    <div class="legend">Başlangıç: geocoder’dan adres seç veya “Konumumu kullan” de.</div>
+    <div class="btn" id="useMe">📍 Konumumu kullan</div>
+    <div class="legend">Hedefler (Oslo örnekleri)</div>
+    <div id="list"></div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script>
+  // 1) TOKEN — kendi public token’inle değiştir
+	mapboxgl.accessToken = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+
+
+  // 2) OSLO örnek hedefler (max 9 hedef: 1 origin + 9 destinasyon = 10 koordinat limiti)
+  const destinations = [
+    { id:'dest-0', name:'Oslo Sentrum (Rådhus)',   coord:[10.7330,59.9133] },
+    { id:'dest-1', name:'Oslo S (Merkez İstasyon)',coord:[10.7530,59.9112] },
+    { id:'dest-2', name:'Frogner Park',            coord:[10.7069,59.9270] },
+    { id:'dest-3', name:'MUNCH Museum',            coord:[10.7634,59.9050] },
+    { id:'dest-4', name:'Ullevål Stadion',         coord:[10.7360,59.9483] },
+    { id:'dest-5', name:'Grünerløkka (Olav Ryes)', coord:[10.7595,59.9221] }
+  ];
+
+  // 3) Harita
+  const map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/mapbox/streets-v12',
+    center: [10.744, 59.916], zoom: 12.2
+  });
+
+  // Geocoder (adres arama)
+  const geocoder = new MapboxGeocoder({
+    accessToken: mapboxgl.accessToken,
+    mapboxgl,
+    marker: false,
+    countries: 'no',
+    language: 'tr'
+  });
+  document.getElementById('geocoder').appendChild(geocoder.onAdd(map));
+
+  // Origin marker & Dest markers
+  let origin = { name:'', coord: [10.744, 59.916] }; // varsayılan merkez (kullanıcı değiştirecek)
+  let originMarker = new mapboxgl.Marker({color:'#0ea5e9'}).setLngLat(origin.coord).addTo(map);
+
+  const destMarkers = [];
+  function addDestMarkers(){
+    destinations.forEach(d => {
+      const m = new mapboxgl.Marker({color:'#ef4444'}).setLngLat(d.coord)
+        .setPopup(new mapboxgl.Popup().setText(d.name))
+        .addTo(map);
+      destMarkers.push(m);
+    });
+  }
+
+  // 4) Matrix çağrısı (sources=origin, destinations=poi’ler)
+  async function fetchMatrixAndRender() {
+    const coords = [origin.coord, ...destinations.map(d => d.coord)]
+      .map(c => `${c[0]},${c[1]}`).join(';');
+
+    // sources=0 (origin), destinations=1..N
+    const destIdx = Array.from({length: destinations.length}, (_,i)=>i+1).join(';');
+    const url = `https://api.mapbox.com/directions-matrix/v1/mapbox/driving-traffic/${coords}` +
+                `?sources=0&destinations=${destIdx}&annotations=duration` +
+                `&access_token=${mapboxgl.accessToken}`;
+
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (data.code !== 'Ok') {
+      console.error('Matrix error:', data);
+      document.getElementById('list').innerHTML = `<div class="item">Hata: ${data.code}</div>`;
+      return;
+    }
+
+    // durations[0] => origin -> her destinasyon için süre (saniye)
+    const durations = data.durations && data.durations[0] ? data.durations[0] : [];
+    const enriched = destinations.map((d, i) => ({
+      ...d,
+      durSec: durations[i] // null olabilir (route yok)
+    })).filter(d => d.durSec != null)
+      .sort((a,b) => a.durSec - b.durSec);
+
+    renderList(enriched);
+  }
+
+  function fmtMin(sec){
+    if (sec == null) return '—';
+    const m = Math.round(sec/60);
+    return m < 1 ? `${Math.round(sec)} sn` : `${m} dk`;
+  }
+
+  // 5) Liste + tıklandığında Directions ile rota çiz
+  async function drawRoute(toCoord){
+    const coords = `${origin.coord[0]},${origin.coord[1]};${toCoord[0]},${toCoord[1]}`;
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving-traffic/${coords}` +
+                `?geometries=geojson&steps=false&access_token=${mapboxgl.accessToken}`;
+    const r = await fetch(url).then(r => r.json());
+    const route = r.routes?.[0]?.geometry;
+    if (!route) return;
+
+    if (map.getLayer('route-line')) map.removeLayer('route-line');
+    if (map.getSource('route-src')) map.removeSource('route-src');
+
+    map.addSource('route-src', { type:'geojson', data: route });
+    map.addLayer({
+      id:'route-line', type:'line', source:'route-src',
+      paint:{ 'line-width': 6, 'line-color': '#2563eb', 'line-opacity': 0.9 }
+    });
+
+    // Kamerayı rotaya uydur
+    const bbox = route.coordinates.reduce((b,c)=>b.extend(c), new mapboxgl.LngLatBounds(route.coordinates[0], route.coordinates[0]));
+    map.fitBounds(bbox, { padding: 60, duration: 700 });
+  }
+
+  function renderList(rows){
+    const list = document.getElementById('list');
+    list.innerHTML = '';
+    rows.forEach((r, idx) => {
+      const div = document.createElement('div');
+      div.className = 'item';
+      div.innerHTML = `<div class="title">${idx+1}. ${r.name} <span class="pill">ETA: ${fmtMin(r.durSec)}</span></div>
+                       <div class="eta">(${r.coord[0].toFixed(4)}, ${r.coord[1].toFixed(4)})</div>`;
+      div.onclick = () => drawRoute(r.coord);
+      list.appendChild(div);
+    });
+  }
+
+  // 6) Geocoder seçimi → origin güncelle + Matrix hesapla
+  geocoder.on('result', ev => {
+    origin = { name: ev.result.place_name, coord: ev.result.center };
+    originMarker.setLngLat(origin.coord);
+    fetchMatrixAndRender();
+  });
+
+  // 7) “Konumumu kullan” (https zorunlu olabilir; lokalde bazı tarayıcılar izin vermez)
+  document.getElementById('useMe').onclick = () => {
+    if (!navigator.geolocation) return alert('Geolocation desteklenmiyor.');
+    navigator.geolocation.getCurrentPosition(pos => {
+      origin.coord = [pos.coords.longitude, pos.coords.latitude];
+      originMarker.setLngLat(origin.coord);
+      map.easeTo({ center: origin.coord, zoom: 13 });
+      fetchMatrixAndRender();
+    }, err => alert('Konum alınamadı: ' + err.message), { enableHighAccuracy:true, timeout:10000 });
+  };
+
+  // 8) Harita yüklendiğinde hedef marker’ları ekle ve ilk hesap
+  map.on('load', () => {
+    addDestMarkers();
+    // İlk hesap (varsayılan origin ile)
+    fetchMatrixAndRender();
+  });
+</script>
+</body>
+</html>
+<!-- 
+
+seçtiğin başlangıç noktasına göre Oslo’daki örnek noktaları ETA’ya (saniye) göre sıralayan bir liste göreceksin. Listeden bir hedefe tıklarsan Directions API ile rotayı da çizer.
+Not: mapbox/driving-traffic profili kullanıyorum (trafik etkili süre). Matrix, geometri döndürmez; bu yüzden rota çizimi için tıklamada ek olarak Directions çağrıyorum.
+
+Sol listede hedefler ETA’ya göre sıralanacak. Birine tıklarsan haritada rota çizilir.
+İpucu: mapbox/driving-traffic ile maksimum 10 koordinat sınırı var (1 origin + 9 hedef). Daha çok hedef varsa, gruplara bölüp birden çok Matrix isteği at ve sonuçları birleştir. Ayrıca domain kısıtıyla token’ını korumayı unutma (Account → Tokens → Allowed URLs).
+
+
+Ne yapıyoruz?
+Seçtiğin başlangıç konumundan (geocoder veya “Konumumu kullan”)
+Birden fazla hedefe (örnek Oslo noktaları) trafik dâhil seyahat süresini (ETA) hesaplıyoruz → Matrix API
+Bu hedefleri ETA’ya göre sıralıyoruz (en çabuk ulaşılacak olan en üstte).
+Listeden birine tıklayınca o hedefe gerçek güzergâhı çizdiriyoruz → Directions API (geometri + ETA).
+Kısaca: “Nereye en hızlı giderim?” sorusunu anında cevaplıyoruz; sonra da “Nasıl giderim?” sorusunu görsel rota ile tamamlıyoruz.
+
+
+Bu size hangi problemi çözüyor?
+Zaman–mesafe doğru kıyas: Hava çizgisi mesafesi değil, yol koşullarına göre süre. Tek yön, dönüş kısıtları ve trafik hesaba katılır.
+
+Hızlı karar: “Şimdi sıradaki en mantıklı hedef hangisi?” 1–2 API çağrısıyla netleşir.
+
+Operasyonel verim: Kurye/teknisyen bir sonraki işi en yakın (süreye göre) seçer → km ve süre düşer, on-time artar.
+
+Kullanıcı deneyimi: “Bana en yakın mağaza/istasyon hangisi?” — liste zaten ETA artan sırada hazır.
+
+Tıklayınca rota: Karar verdikten sonra anında güzergâh önizlemesi (talimat/ETA ile).
+
+
+Hangi senaryolarda doğrudan işe yarar?
+
+Dispatch / saha hizmeti: 10 sürücüden hangisi yeni işi almalı? (Matrix ile süre tablosu → en düşük).
+
+Kurye/Dağıtım: Yeni paket geldi; mevcut konumdan hangi teslimata geçmeliyim?
+
+Store locator: Müşteriye “yakınımdaki mağazalar”ı yol süresi sırasına göre göster, tıklayınca rota çıkar.
+
+Acil durum/yardım: En hızlı ulaşacak ekip hangisi?
+
+
+Neden Matrix + Directions (Optimization değil)?
+
+Matrix API: “Bir origin → çok hedef” (ya da birkaç origin ↔ birkaç hedef) süre/maliyet karşılaştırması için en hızlı yol. Geometri dönmez; kıyas için idealdir.
+
+Directions API: Karar verdikten sonra tek rotayı çizmek/ETA göstermek için.
+
+Optimization v1/v2: Bir aracın birden çok durağı en iyi sırayla gezmesi (v1) veya çok araç + kısıtlarla filonun planı (v2) için. Yani “sıradaki tek hedef” yerine “tüm günün planı” gerektiğinde.
+
+Sıralama neden önemli?
+Zihinsel yükü ortadan kaldırır. Operatörün tek tek haritaya bakıp tahmin yürütmesine gerek kalmaz; en hızlıdan en yavaşa otomatik dizilir.
+
+(Kodda) şunu yapıyoruz:
+
+const enriched = destinations
+  .map((d,i) => ({ ...d, durSec: durations[i] }))
+  .filter(d => d.durSec != null)
+  .sort((a,b) => a.durSec - b.durSec); // küçükten büyüğe
+
+  Böylece liste ETA küçükten büyüğe gelir; tıklayınca Directions’la rota görünür.
+
+
+  Geliştirme fikirleri (hemen üstüne koyabileceğin şeyler)
+
+  Daha fazla hedef: driving-traffic profilinde 10 koordinat limiti var → hedefleri 9’luk gruplara böl, sonuçları birleştir.
+
+Depart_at (gelecek trafik): “30 dk sonra çıkarsam?” hesabı için depart_at parametresi (beta) ile Matrix/Directions’tan gelecek zaman trafiği kullan.
+
+Gerçek zamanlı yenileme: Origin değiştikçe (araç hareket ediyorsa) olay bazlı tekrar Matrix çağır → liste otomatik güncellensin.
+
+Atama: Birden fazla sürücün varsa, Matrix’ten gelen maliyet matrisi ile Hungarian algoritmasıyla optimal sürücü–iş eşleştirmesi yap.
+
+Uber-tarzı “yolcuya en yakın taksi” veya “en yakın taksi durağı” gibi senaryolarda çok işe yarar:
+Yolcu (tek nokta) → birçok sürücü: Matrix ile 1×N süreleri hesapla, en küçük süre hangi sürücüdeyse ona ata.
+Yolcu → taksi durakları/POI: POI’leri (kendi listen ya da Mapbox Search/Category “taxi stand”) al; Matrix’le ETA’ya göre sırala.
+
+Uber-benzeri “en yakın sürücüyü ata” – tarif & örnek
+Adımlar (reçete)
+
+Sürücülerinin canlı konumlarını (lon,lat) backend’de tut.
+
+Yolcu konumu geldiğinde hava mesafesiyle en yakın 9 sürücüyü ön-ele (çünkü driving-traffic profilinde Matrix max 10 koordinat: 1 yolcu + 9 sürücü).
+
+Matrix API (driving-traffic) ile sources=0 (yolcu), destinations=1..N (sürücüler): süreleri al.
+
+min( duration ) olan sürücüyü seç → dispatch et.
+
+Seçilen sürücü için Directions API ile rota + ETA üret, uygulamaya gönder (veya Navigation SDK).
+Matrix çağrısı (1 yolcu → 4 sürücü örneği)
+
+
+GET https://api.mapbox.com/directions-matrix/v1/mapbox/driving-traffic/
+  10.7522,59.9139; 10.7600,59.9200; 10.7400,59.9150; 10.7700,59.9100; 10.7550,59.9250
+  ?sources=0
+  &destinations=1;2;3;4
+  &annotations=duration
+  &access_token=YOUR_TOKEN
+
+
+  Küçük seçim fonksiyonu (JS)
+
+  const drivers = [
+  {id:'d1', coord:[10.7600,59.9200]},
+  {id:'d2', coord:[10.7400,59.9150]},
+  {id:'d3', coord:[10.7700,59.9100]},
+  {id:'d4', coord:[10.7550,59.9250]}
+];
+// matrixResponse.durations[0] -> [214,168,255,201]
+function pickBestDriver(durations, drivers){
+  let bestIdx = -1, best = Infinity;
+  durations.forEach((sec, i) => { if (sec!=null && sec<best){ best=sec; bestIdx=i; }});
+  return bestIdx >= 0 ? { driver: drivers[bestIdx], etaSec: best } : null;
+}
+
+(İsteğe bağlı) Rota çizimi
+
+Seçtiğin sürücü için Directions:
+
+GET https://api.mapbox.com/directions/v5/mapbox/driving-traffic/
+  {lon_driver},{lat_driver};{lon_rider},{lat_rider}
+  ?geometries=geojson&steps=true&language=tr
+  &access_token=YOUR_TOKEN
+
+
+  “En yakın taksi durağı/POI” için
+
+Kendi POI listen varsa: Matrix ile origin → çok POI ETA’larını al, küçükten büyüğe sırala, tıklamada Directions çiz.
+
+Genel POI arayacaksan: Mapbox Search (Category Search) ile “taxi stand” yakınlarında POI çek, sonra Matrix’le ETA re-rank yap.
+
+Optimization v1/v2 nerede devreye girer?
+
+Matrix + Directions: Tek seferlik atama (yeni bir iş/yolcu) için en hızlı, hafif çözüm.
+
+Optimization v1: Tek araç + birden çok durak sıralaması (küçük turlar).
+
+Optimization v2: Çok araç + kısıtlar (vardiya, kapasite, zaman penceresi) ile günlük plan. Ride-hailing’de “çok yolcuyu/çok sürücüye paylaştırıp çoklu duraklı rotalar” gibi planlama varsa düşünülür; anlık tek atama için Matrix yeterlidir.
+-->

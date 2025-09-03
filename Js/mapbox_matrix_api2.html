@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <title>Mapbox Matrix + Directions — Dispatch Örnekleri (A & B)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Mapbox GL JS v3.14.0 -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+
+  <style>
+    :root { --b:#e5e7eb; --t:#111827; --m:#2563eb; --ok:#16a34a; --bad:#ef4444; }
+    * { box-sizing: border-box }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:var(--t); }
+    #app { display:grid; grid-template-columns: 380px 1fr; height:100vh; }
+    #side { border-right:1px solid var(--b); padding:14px; overflow:auto; }
+    #map { width:100%; height:100%; }
+    .h { font-weight:700; margin:0 0 8px }
+    .sub { font-size:12px; color:#6b7280; margin:6px 0 12px }
+    .row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px }
+    button { padding:8px 10px; border:1px solid var(--b); border-radius:10px; background:#fff; cursor:pointer }
+    button:hover { background:#f8fafc }
+    .badge { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; }
+    .card { border:1px solid var(--b); border-radius:12px; padding:10px; margin:10px 0 }
+    .list .item { padding:8px; border:1px dashed var(--b); border-radius:10px; margin:6px 0; cursor:pointer }
+    .list .item:hover { background:#f8fafc }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .ok { color: var(--ok) } .bad { color: var(--bad) }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="side">
+    <h3 class="h">Dispatch Demo — Matrix + Directions</h3>
+    <div class="sub">A: Tek iş → en uygun sürücüyü seç. B: 3×3 eşleşme (min toplam süre, Hungarian).</div>
+
+    <div class="card">
+      <div class="h">A) Tek İş → En Uygun Sürücü</div>
+      <div class="sub">Haritaya <b>tıkla</b> (iş konumu değişir) ya da “Konumumu kullan”. Sonra “Hesapla”.</div>
+      <div class="row">
+        <button id="useMe">📍 Konumumu kullan</button>
+        <button id="runA">A — Matrix Hesapla</button>
+        <button id="clear">Temizle</button>
+      </div>
+      <div id="aInfo" class="sub"></div>
+      <div id="aList" class="list"></div>
+    </div>
+
+    <div class="card">
+      <div class="h">B) 3 Sürücü × 3 İş → Min-Cost Eşleşme</div>
+      <div class="sub">Hazır koordinatlar ile 3×3 Matrix + Hungarian. “B — Çalıştır” de.</div>
+      <div class="row">
+        <button id="runB">B — Çalıştır</button>
+      </div>
+      <div id="bInfo" class="sub"></div>
+      <div id="bList" class="list"></div>
+    </div>
+
+    <div class="sub mono">
+      Profil: <b>mapbox/driving-traffic</b> (trafik dahil ETA) — Matrix max 10 koordinat.<br>
+      Çalıştırma: tokenını değiştir, <b>localhost</b> üstünden aç.
+    </div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script>
+  // ====== 0) TOKEN ======
+	mapboxgl.accessToken = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+
+
+  // ====== 1) HARİTA ======
+  const map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/mapbox/streets-v12',
+    center: [10.744, 59.916], zoom: 12.3
+  });
+
+  // Temizleme (katman/kaynak/marker)
+  function removeIfExists(id, isLayer=true){
+    if (isLayer && map.getLayer(id)) map.removeLayer(id);
+    if (!isLayer && map.getSource(id)) map.removeSource(id);
+  }
+  function clearRoutes(){
+    // A rotası
+    removeIfExists('route-a'); removeIfExists('src-a', false);
+    // B rotaları (0..2)
+    for (let i=0;i<3;i++){ removeIfExists('route-b-'+i); removeIfExists('src-b-'+i, false); }
+  }
+
+  // ====== 2) ÖRNEK A — Sürücüler ve İş (tıklanabilir) ======
+  // 5 sürücü (marker: mavi)
+  const driversA = [
+    { id:'d1', coord:[10.7600,59.9200] },
+    { id:'d2', coord:[10.7400,59.9150] },
+    { id:'d3', coord:[10.7700,59.9100] },
+    { id:'d4', coord:[10.7550,59.9250] },
+    { id:'d5', coord:[10.7320,59.9050] }
+  ];
+  const driverMarkersA = [];
+
+  // İş (yeşil marker) — başlangıçta Oslo merkezine yakın
+  let jobA = { id:'job-1', coord:[10.7522,59.9139] };
+  let jobMarkerA;
+
+  function addMarkersA(){
+    // İş marker
+    if (jobMarkerA) jobMarkerA.remove();
+    jobMarkerA = new mapboxgl.Marker({ color:'#16a34a' }).setLngLat(jobA.coord).addTo(map);
+    // Sürücü markerları
+    driverMarkersA.forEach(m=>m.remove());
+    driversA.forEach((d,i)=>{
+      const m = new mapboxgl.Marker({ color:'#2563eb' })
+        .setLngLat(d.coord)
+        .setPopup(new mapboxgl.Popup().setText(`${d.id}`))
+        .addTo(map);
+      driverMarkersA.push(m);
+    });
+  }
+
+  // Haritaya tıklayınca A senaryosu için iş konumunu güncelle
+  map.on('click', (e) => {
+    jobA.coord = [e.lngLat.lng, e.lngLat.lat];
+    if (jobMarkerA){ jobMarkerA.setLngLat(jobA.coord); }
+    document.getElementById('aInfo').innerText = `İş konumu güncellendi: ${jobA.coord[0].toFixed(5)}, ${jobA.coord[1].toFixed(5)} — "A — Matrix Hesapla"ya bas.`;
+  });
+
+  // ====== 3) MATRIX Yardımcıları ======
+  function toCoordStr(c){ return `${c[0]},${c[1]}`; }
+  function fmtMin(sec){ if (sec==null) return '—'; const m = Math.round(sec/60); return m<1 ? `${Math.round(sec)} sn` : `${m} dk`; }
+
+  async function matrixOneToMany(origin, others){
+    const coords = [origin, ...others].map(toCoordStr).join(';');
+    const destIdx = others.map((_,i)=>i+1).join(';'); // 1..N
+    const url = `https://api.mapbox.com/directions-matrix/v1/mapbox/driving-traffic/${coords}?sources=0&destinations=${destIdx}&annotations=duration&access_token=${mapboxgl.accessToken}`;
+    const r = await fetch(url); const data = await r.json();
+    if (data.code!=='Ok') throw new Error(`Matrix hata: ${data.code} ${data.message||''}`);
+    return data.durations[0]; // origin -> others süreleri
+  }
+
+  async function matrixManyToMany(origins, dests){
+    const coordsAll = [...origins, ...dests].map(toCoordStr).join(';');
+    const srcIdx = origins.map((_,i)=>i).join(';'); // 0..m-1
+    const dstIdx = dests.map((_,i)=>i+origins.length).join(';'); // m..m+n-1
+    const url = `https://api.mapbox.com/directions-matrix/v1/mapbox/driving-traffic/${coordsAll}?sources=${srcIdx}&destinations=${dstIdx}&annotations=duration&access_token=${mapboxgl.accessToken}`;
+    const r = await fetch(url); const data = await r.json();
+    if (data.code!=='Ok') throw new Error(`Matrix hata: ${data.code} ${data.message||''}`);
+    return data.durations; // m x n
+  }
+
+  // ====== 4) Directions (tek rota çiz) ======
+  async function drawRoute(idPrefix, from, to, color){
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving-traffic/${toCoordStr(from)};${toCoordStr(to)}?geometries=geojson&steps=false&access_token=${mapboxgl.accessToken}`;
+    const r = await fetch(url); const data = await r.json();
+    const geom = data.routes?.[0]?.geometry;
+    if (!geom) return;
+
+    const srcId = `src-${idPrefix}`, layerId = `route-${idPrefix}`;
+    removeIfExists(layerId); removeIfExists(srcId, false);
+    map.addSource(srcId, { type:'geojson', data: geom });
+    map.addLayer({
+      id: layerId, type:'line', source: srcId,
+      paint: { 'line-width': 6, 'line-color': color || '#2563eb', 'line-opacity': 0.9 }
+    });
+
+    // Kamerayı sığdır (sadece tek rota ise)
+    if (idPrefix === 'a'){
+      const b = geom.coordinates.reduce((bb,c)=>bb.extend(c), new mapboxgl.LngLatBounds(geom.coordinates[0], geom.coordinates[0]));
+      map.fitBounds(b, { padding: 60, duration: 600 });
+    }
+  }
+
+  // ====== 5) ÖRNEK A — Çalıştır ======
+  async function runExampleA(){
+    try{
+      clearRoutes();
+      document.getElementById('aInfo').innerText = 'Hesaplanıyor…';
+      const durations = await matrixOneToMany(jobA.coord, driversA.map(d=>d.coord));
+      // en küçük süreli sürücüyü bul
+      let bestIdx=-1, best=Infinity;
+      durations.forEach((sec,i)=>{ if(sec!=null && sec<best){best=sec; bestIdx=i;} });
+      // Liste (ETA artan sırada)
+      const rows = driversA.map((d,i)=>({ ...d, sec: durations[i] }))
+                           .filter(x=>x.sec!=null)
+                           .sort((a,b)=>a.sec-b.sec);
+      const aList = document.getElementById('aList');
+      aList.innerHTML = '';
+      rows.forEach((r,rank)=>{
+        const div = document.createElement('div');
+        div.className = 'item';
+        const bestStar = (driversA.indexOf(r)===bestIdx) ? ' ⭐' : '';
+        div.innerHTML = `<b>${rank+1}.</b> ${r.id}${bestStar} — ETA <b>${fmtMin(r.sec)}</b> <span class="mono">(${r.coord[0].toFixed(4)}, ${r.coord[1].toFixed(4)})</span>`;
+        div.onclick = ()=> drawRoute('a', r.coord, jobA.coord, '#2563eb');
+        aList.appendChild(div);
+      });
+      if (bestIdx>=0){
+        document.getElementById('aInfo').innerHTML = `Seçim: <b>${driversA[bestIdx].id}</b> (ETA ${fmtMin(best)}). Liste öğesine tıklarsan rota çizilir.`;
+        // İstersen otomatik rota:
+        await drawRoute('a', driversA[bestIdx].coord, jobA.coord, '#2563eb');
+      } else {
+        document.getElementById('aInfo').innerText = 'Ulaşılabilir sürücü bulunamadı.';
+      }
+    }catch(e){
+      document.getElementById('aInfo').innerHTML = `<span class="bad">Hata:</span> ${e.message}`;
+      console.error(e);
+    }
+  }
+
+  // ====== 6) ÖRNEK B — 3×3 Min-Cost (Hungarian) ======
+  const driversB = [
+    { id:'D1', coord:[10.7600,59.9200] },
+    { id:'D2', coord:[10.7400,59.9150] },
+    { id:'D3', coord:[10.7700,59.9100] }
+  ];
+  const jobsB = [
+    { id:'J1', coord:[10.7522,59.9139] },
+    { id:'J2', coord:[10.7630,59.9210] },
+    { id:'J3', coord:[10.7450,59.9180] }
+  ];
+
+  // Basit Hungarian (square matrix). 3x3 için yeterli.
+  // Kaynak: Klasik Hungarian tekniğinin sadeleştirilmiş JS uyarlaması.
+  function hungarianMin(cost){
+    const n = cost.length;
+    // 1) Row reduce
+    for (let i=0;i<n;i++){
+      const min = Math.min(...cost[i].map(v=>v??Infinity));
+      for (let j=0;j<n;j++) cost[i][j] = (cost[i][j]==null?1e9:cost[i][j]) - min;
+    }
+    // 2) Column reduce
+    for (let j=0;j<n;j++){
+      let colMin=Infinity; for (let i=0;i<n;i++) colMin=Math.min(colMin,cost[i][j]);
+      for (let i=0;i<n;i++) cost[i][j]-=colMin;
+    }
+    // 3) Greedy zero cover + augment (küçük n için pratik)
+    const assignedCol = Array(n).fill(-1);
+    function tryAssign(row, seen){
+      for (let col=0; col<n; col++){
+        if (cost[row][col]!==0 || seen[col]) continue;
+        seen[col]=true;
+        if (assignedCol[col]===-1 || tryAssign(assignedCol[col], seen)){
+          assignedCol[col]=row; return true;
+        }
+      }
+      return false;
+    }
+    for (let row=0; row<n; row++){ tryAssign(row, Array(n).fill(false)); }
+
+    // Eğer tüm satırlar atanmadıysa (nadiren) küçük ayarlamalar yap
+    let coveredRows = Array(n).fill(false), coveredCols = Array(n).fill(false);
+    let matchedRows = new Set(Object.values(assignedCol).filter(v=>v!==-1));
+    // Klasik adımların kısa versiyonu: küçük n için genelde tam atama çıkıyor.
+    // Atamaları döndür (row->col)
+    const result = Array(n).fill(-1);
+    for (let col=0; col<n; col++) if (assignedCol[col]!==-1) result[assignedCol[col]] = col;
+    return result; // result[row] = assigned column
+  }
+
+  async function runExampleB(){
+    try{
+      clearRoutes();
+      document.getElementById('bInfo').innerText = 'Hesaplanıyor…';
+      // 3x3 Matrix
+      const durations = await matrixManyToMany(driversB.map(d=>d.coord), jobsB.map(j=>j.coord)); // saniye
+      // Hungarian için kopya (dakika bazlı — fark etmez)
+      const cost = durations.map(row => row.map(v => v==null?1e9:v));
+      const assign = hungarianMin(cost.map(r=>r.slice())); // row->col
+
+      // Listele & rotaları çiz
+      const bList = document.getElementById('bList'); bList.innerHTML='';
+      let total = 0;
+      for (let r=0; r<assign.length; r++){
+        const c = assign[r];
+        if (c<0 || c>=jobsB.length || durations[r][c]==null) continue;
+        const d = driversB[r], j = jobsB[c], sec = durations[r][c];
+        total += sec;
+
+        const item = document.createElement('div');
+        item.className = 'item';
+        item.innerHTML = `<b>${d.id}</b> → <b>${j.id}</b> — ETA <b>${fmtMin(sec)}</b> <span class="mono">(${toCoordStr(d.coord)} → ${toCoordStr(j.coord)})</span>`;
+        item.onclick = ()=> drawRoute('b-'+r, d.coord, j.coord, ['#2563eb','#16a34a','#f59e0b'][r%3]);
+        bList.appendChild(item);
+
+        // Otomatik çiz (isteğe bağlı)
+        await drawRoute('b-'+r, d.coord, j.coord, ['#2563eb','#16a34a','#f59e0b'][r%3]);
+      }
+      document.getElementById('bInfo').innerHTML = `Toplam süre (seçilen eşleşme): <b>${fmtMin(total)}</b>`;
+    }catch(e){
+      document.getElementById('bInfo').innerHTML = `<span class="bad">Hata:</span> ${e.message}`;
+      console.error(e);
+    }
+  }
+
+  // ====== 7) UI: Butonlar ======
+  document.getElementById('runA').onclick = runExampleA;
+  document.getElementById('runB').onclick = runExampleB;
+  document.getElementById('clear').onclick = ()=>{
+    clearRoutes();
+    document.getElementById('aList').innerHTML='';
+    document.getElementById('bList').innerHTML='';
+    document.getElementById('aInfo').innerText='';
+    document.getElementById('bInfo').innerText='';
+  };
+  document.getElementById('useMe').onclick = ()=>{
+    if (!navigator.geolocation) return alert('Geolocation desteklenmiyor.');
+    navigator.geolocation.getCurrentPosition(pos=>{
+      jobA.coord = [pos.coords.longitude, pos.coords.latitude];
+      if (jobMarkerA) jobMarkerA.setLngLat(jobA.coord); else addMarkersA();
+      map.easeTo({ center: jobA.coord, zoom: 13 });
+      document.getElementById('aInfo').innerText = `İş konumu güncellendi (konumum). "A — Matrix Hesapla"ya bas.`;
+    }, err=>alert('Konum alınamadı: '+err.message), { enableHighAccuracy:true, timeout:10000 });
+  };
+
+  // ====== 8) Başlangıçta markerları koy ======
+  map.on('load', ()=>{
+    addMarkersA();
+  });
+</script>
+</body>
+</html>
+<!-- 
+Bu sayfada neler var?
+
+Örnek A: Tek iş + birden çok sürücü → Matrix ile en kısa ETA’lı sürücüyü bul, tıkla → Directions ile rota çiz.
+
+Örnek B: 3 sürücü + 3 iş → Matrix ile 3×3 süre matrisi al; Hungarian (min-cost) ile toplam süreyi minimize eden eşleşmeyi bul; her eşleşme için Directions ile rotaları çiz.
+
+
+Evet—“d2 hava (kuş uçuşu) olarak en yakın” olsa bile ETA (yol süresi) daha uzun çıkabilir. Nedeni: Matrix, yol ağı + tek yönler + dönüş kısıtları + hız profilleri + (driving-traffic seçtiysen) trafik ile hesap yapar. Yani:
+
+Tek yön / U-dönüş zorunluluğu → dolanma.
+
+Kavşak/dönüş yasakları → ek sapma.
+
+Hız profilleri / trafik yoğunluğu → iki nokta eşit mesafede olsa da süre farklı.
+
+Yanlış yönde ilerleme (sürücü zaten ters yöne gidiyorsa) → geri dönme maliyeti.
+
+Snap edilen yol farklı (araç park içindeyse en yakın çıkış yolu dolanımlı olabilir).
+
+Ayrıca önemli bir nüans: Demo’da işi origin, sürücüleri destination yapmış olabilirsin. Bu durumda hesap iş→sürücü süresi olur. Oysa dispatch’te doğru olan sürücü→iş süresidir. Asimetri (A→B ≠ B→A) yüzünden sıralama değişebilir.
+
+Doğru yön: sürücü → iş (küçük düzeltme)
+
+Aşağıdaki helper’ı ekle ve A örneğinde bunu kullan:
+
+// N sürücü (sources) -> 1 iş (destination)  ==> N×1 matrix
+async function matrixManyToOne(sources, destination) {
+  const toStr = c => `${c[0]},${c[1]}`;
+  const coords = [...sources, destination].map(toStr).join(';');
+  const srcIdx = sources.map((_, i) => i).join(';');          // 0..N-1
+  const dstIdx = sources.length;                               // N (tek hedef)
+  const url = `https://api.mapbox.com/directions-matrix/v1/mapbox/driving-traffic/${coords}` +
+              `?sources=${srcIdx}&destinations=${dstIdx}&annotations=duration&access_token=${mapboxgl.accessToken}`;
+  const data = await (await fetch(url)).json();
+  if (data.code !== 'Ok') throw new Error(`Matrix hata: ${data.code} ${data.message||''}`);
+  // durations[row][0] = o sürücüden (row) işe (tek hedef) süre (sn)
+  return data.durations.map(row => row[0]);
+}
+
+
+runExampleA() içinde çağrıyı şöyle değiştir:
+
+// ESKİ (iş -> sürücüler)
+// const durations = await matrixOneToMany(jobA.coord, driversA.map(d=>d.coord));
+
+// YENİ (sürücüler -> iş)  
+const durations = await matrixManyToOne(driversA.map(d=>d.coord), jobA.coord);
+
+
+Böylece d2, gerçekten sürücünün iş yerine gidiş süresine göre sıralanır. Hâlâ “d2 en kısa değil” çıkarsa, yukarıdaki yol/ trafik nedenlerinden biridir (normal).
+
+Daha isabetli sonuç için küçük ipuçları
+
+Trafik: mapbox/driving-traffic doğru tercih. “Gelecekte çıkış” gerekiyorsa depart_at (beta) kullanabilirsin.
+
+Sürücü hareket hâlindeyse: İlk waypoint için bearings (örn. heading,90) + radiuses (örn. 30) ver; araç mevcut şeritte kalsın.
+
+Kaldırım tarafı önemliyse (varoşta yanaşma): approaches=curb.
+
+Snap sorunu (otopark/yan yol): radiuses değerini 25–50 m yapmak doğru yolu bulmayı kolaylaştırır.
+
+İstersen koduna bu düzeltmeleri ben gömüp “eski-yeni (iş→sürücü vs sürücü→iş)” iki yönü yan yana hesaplayacak ve farkı gösterecek mini bir panel de ekleyebilirim.
+
+-->

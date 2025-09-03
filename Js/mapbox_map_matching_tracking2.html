@@ -202,3 +202,33 @@
 </script>
 </body>
 </html>
+<!-- 
+1) Gerçek konum besle (watchPosition / telemetri)
+
+Simülasyon yerine cihaz konumunu besleyin; mevcut “iz çizme” mantığınız çalışmaya devam eder: 
+
+navigator.geolocation.watchPosition(p => {
+  const pt = [p.coords.longitude, p.coords.latitude];
+  progressedGeo.geometry.coordinates.push(pt);
+  map.getSource('route-progressed').setData(progressedGeo);
+  car.setLngLat(pt);
+}, console.error, { enableHighAccuracy:true, maximumAge:5000, timeout:10000 });
+
+
+Sunucudan (WebSocket/HTTP) gelen araç telemetrisi varsa aynı şekilde pt ekleyip marker’ı güncellersiniz.
+2) Yola oturt (Map Matching) – “gerçek sürülen yol”
+async function snapToRoad(samples){ // samples: [[lon,lat,timestamp(ms)], ...]
+  const coords = samples.map(s=>`${s[0]},${s[1]}`).join(';');
+  const ts     = samples.map(s=>Math.floor(s[2]/1000)).join(';');
+  const url = `https://api.mapbox.com/matching/v5/mapbox/driving/${coords}` +
+              `?geometries=geojson&tidy=true&timestamps=${ts}&radiuses=${'30;'.repeat(samples.length).slice(0,-1)}` +
+              `&access_token=${MAPBOX_TOKEN}`;
+  const resp = await fetch(url).then(r=>r.json());
+  return resp.matchings?.[0]?.geometry; // LineString
+}
+// kullanımı:
+const matched = await snapToRoad(bufferedPoints);
+if (matched) map.getSource('route-progressed').setData(matched);
+
+
+-->

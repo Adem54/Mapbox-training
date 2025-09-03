@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <title>Mapbox Dispatch Demo — Matrix + Directions (A & B)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Mapbox GL JS v3.14.0 -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.css" rel="stylesheet">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.14.0/mapbox-gl.js"></script>
+
+  <style>
+    :root { --b:#e5e7eb; --t:#111827; --m:#2563eb; --ok:#16a34a; --bad:#ef4444; }
+    * { box-sizing: border-box }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; color:var(--t); }
+    #app { display:grid; grid-template-columns: 390px 1fr; height:100vh; }
+    #side { border-right:1px solid var(--b); padding:14px; overflow:auto; }
+    #map { width:100%; height:100%; }
+    .h { font-weight:700; margin:0 0 8px }
+    .sub { font-size:12px; color:#6b7280; margin:6px 0 12px }
+    .row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px }
+    button { padding:8px 10px; border:1px solid var(--b); border-radius:10px; background:#fff; cursor:pointer }
+    button:hover { background:#f8fafc }
+    .card { border:1px solid var(--b); border-radius:12px; padding:10px; margin:10px 0 }
+    .list .item { padding:8px; border:1px dashed var(--b); border-radius:10px; margin:6px 0; cursor:pointer }
+    .list .item:hover { background:#f8fafc }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .ok { color: var(--ok) } .bad { color: var(--bad) }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="side">
+    <h3 class="h">Dispatch Demo — Matrix + Directions</h3>
+    <div class="sub">A: Tek iş → en uygun sürücü. B: 4×4 eşleşme (Hungarian, min toplam süre).</div>
+
+    <div class="card">
+      <div class="h">A) Tek İş → En Uygun Sürücü</div>
+      <div class="sub">Haritaya <b>tıkla</b> (iş konumunu değiştir) ya da “Konumumu kullan”. Sonra “A — Matrix Hesapla”.</div>
+      <div class="row">
+        <button id="useMe">📍 Konumumu kullan</button>
+        <button id="runA">A — Matrix Hesapla</button>
+        <button id="clear">Temizle</button>
+      </div>
+      <div id="aInfo" class="sub"></div>
+      <div id="aList" class="list"></div>
+    </div>
+
+    <div class="card">
+      <div class="h">B) 4 Sürücü × 4 İş → Min-Cost Eşleşme</div>
+      <div class="sub">Hazır koordinatlarla Matrix (4×4) + Hungarian. “B — Çalıştır”.</div>
+      <div class="row">
+        <button id="runB">B — Çalıştır</button>
+      </div>
+      <div id="bInfo" class="sub"></div>
+      <div id="bList" class="list"></div>
+    </div>
+
+    <div class="sub mono">
+      Profil: <b>mapbox/driving-traffic</b> — Matrix’te max 10 koordinat (limit uygundur).<br>
+      Sorun olursa F12 → Console/Network’ten hata mesajına bak.
+    </div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<script>
+  // ====== 0) TOKEN ======
+	mapboxgl.accessToken = 'pk.eyJ1IjoiYWRlbS01NCIsImEiOiJjbWFsM3R4d2MwNGtmMmpzZnk2ZW5tcGRsIn0.aCSC5Pe3IUcHI8MDeCTwxw';
+
+
+  // ====== 1) HARİTA ======
+  const map = new mapboxgl.Map({
+    container: 'map',
+    style: 'mapbox://styles/mapbox/streets-v12',
+    center: [10.744, 59.916], zoom: 12.4
+  });
+
+  function removeIfExists(id, isLayer=true){
+    if (isLayer && map.getLayer(id)) map.removeLayer(id);
+    if (!isLayer && map.getSource(id)) map.removeSource(id);
+  }
+  function clearRoutes(){
+    // A rotası
+    removeIfExists('route-a'); removeIfExists('src-a', false);
+    // B rotaları (0..3)
+    for (let i=0;i<4;i++){ removeIfExists('route-b-'+i); removeIfExists('src-b-'+i, false); }
+  }
+
+  // ====== 2) ÖRNEK A — Sürücüler ve İş ======
+  const driversA = [
+    { id:'d1', coord:[10.7600,59.9200] },
+    { id:'d2', coord:[10.7400,59.9150] },
+    { id:'d3', coord:[10.7700,59.9100] },
+    { id:'d4', coord:[10.7550,59.9250] },
+    { id:'d5', coord:[10.7320,59.9050] }
+  ];
+  let jobA = { id:'job-1', coord:[10.7522,59.9139] };
+  let jobMarkerA;
+  const driverMarkersA = [];
+
+  function addMarkersA(){
+    if (jobMarkerA) jobMarkerA.remove();
+    jobMarkerA = new mapboxgl.Marker({ color:'#16a34a' }).setLngLat(jobA.coord).addTo(map);
+    driverMarkersA.forEach(m=>m.remove());
+    driversA.forEach(d=>{
+      const m = new mapboxgl.Marker({ color:'#2563eb' })
+        .setLngLat(d.coord)
+        .setPopup(new mapboxgl.Popup().setText(`${d.id}`))
+        .addTo(map);
+      driverMarkersA.push(m);
+    });
+  }
+
+  map.on('click', (e) => {
+    jobA.coord = [e.lngLat.lng, e.lngLat.lat];
+    if (jobMarkerA) jobMarkerA.setLngLat(jobA.coord);
+    document.getElementById('aInfo').innerText =
+      `İş konumu: ${jobA.coord[0].toFixed(5)}, ${jobA.coord[1].toFixed(5)} — "A — Matrix Hesapla"ya bas.`;
+  });
+
+  // ====== 3) Matrix yardımcıları ======
+  const toCoordStr = c => `${c[0]},${c[1]}`;
+  function fmtMin(sec){ if (sec==null) return '—'; const m = Math.round(sec/60); return m<1 ? `${Math.round(sec)} sn` : `${m} dk`; }
+
+  async function matrixOneToMany(origin, others){
+    const coords = [origin, ...others].map(toCoordStr).join(';');
+    const destIdx = others.map((_,i)=>i+1).join(';'); // 1..N
+    const url = `https://api.mapbox.com/directions-matrix/v1/mapbox/driving-traffic/${coords}` +
+                `?sources=0&destinations=${destIdx}&annotations=duration&access_token=${mapboxgl.accessToken}`;
+    const r = await fetch(url); const data = await r.json();
+    if (data.code!=='Ok') throw new Error(`Matrix hata: ${data.code} ${data.message||''}`);
+    return data.durations[0]; // origin -> others süreleri
+  }
+
+  async function matrixManyToMany(origins, dests){
+    const coordsAll = [...origins, ...dests].map(toCoordStr).join(';');
+    const srcIdx = origins.map((_,i)=>i).join(';'); // 0..m-1
+    const dstIdx = dests.map((_,i)=>i+origins.length).join(';'); // m..m+n-1
+    const url = `https://api.mapbox.com/directions-matrix/v1/mapbox/driving-traffic/${coordsAll}` +
+                `?sources=${srcIdx}&destinations=${dstIdx}&annotations=duration&access_token=${mapboxgl.accessToken}`;
+    const r = await fetch(url); const data = await r.json();
+    if (data.code!=='Ok') throw new Error(`Matrix hata: ${data.code} ${data.message||''}`);
+    return data.durations; // m x n
+  }
+
+  // ====== 4) Directions (tek rota çiz) ======
+  async function drawRoute(idPrefix, from, to, color){
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving-traffic/${toCoordStr(from)};${toCoordStr(to)}` +
+                `?geometries=geojson&steps=false&access_token=${mapboxgl.accessToken}`;
+    const r = await fetch(url); const data = await r.json();
+    const geom = data.routes?.[0]?.geometry;
+    if (!geom) return;
+    const srcId = `src-${idPrefix}`, layerId = `route-${idPrefix}`;
+    removeIfExists(layerId); removeIfExists(srcId, false);
+    map.addSource(srcId, { type:'geojson', data: geom });
+    map.addLayer({
+      id: layerId, type:'line', source: srcId,
+      paint: { 'line-width': 6, 'line-color': color || '#2563eb', 'line-opacity': 0.9 }
+    });
+    if (idPrefix === 'a'){ // A senaryosunda kamerayı sığdır
+      const b = geom.coordinates.reduce((bb,c)=>bb.extend(c),
+        new mapboxgl.LngLatBounds(geom.coordinates[0], geom.coordinates[0]));
+      map.fitBounds(b, { padding: 60, duration: 600 });
+    }
+  }
+
+  // ====== 5) ÖRNEK A — Çalıştır ======
+  async function runExampleA(){
+    try{
+      clearRoutes();
+      document.getElementById('aInfo').innerText = 'Hesaplanıyor…';
+      const durations = await matrixOneToMany(jobA.coord, driversA.map(d=>d.coord));
+      // en küçük süreli sürücüyü bul
+      let bestIdx=-1, best=Infinity;
+      durations.forEach((sec,i)=>{ if(sec!=null && sec<best){best=sec; bestIdx=i;} });
+
+      // liste (ETA artan sırada)
+      const rows = driversA.map((d,i)=>({ ...d, sec: durations[i] }))
+                           .filter(x=>x.sec!=null)
+                           .sort((a,b)=>a.sec-b.sec);
+      const aList = document.getElementById('aList');
+      aList.innerHTML = '';
+      rows.forEach((r,rank)=>{
+        const div = document.createElement('div');
+        div.className = 'item';
+        const star = (driversA.indexOf(r)===bestIdx) ? ' ⭐' : '';
+        div.innerHTML = `<b>${rank+1}.</b> ${r.id}${star} — ETA <b>${fmtMin(r.sec)}</b> <span class="mono">(${toCoordStr(r.coord)})</span>`;
+        div.onclick = ()=> drawRoute('a', r.coord, jobA.coord, '#2563eb');
+        aList.appendChild(div);
+      });
+      if (bestIdx>=0){
+        document.getElementById('aInfo').innerHTML =
+          `Seçim: <b>${driversA[bestIdx].id}</b> (ETA ${fmtMin(best)}). Listeden tıklarsan rota çizilir.`;
+        await drawRoute('a', driversA[bestIdx].coord, jobA.coord, '#2563eb');
+      } else {
+        document.getElementById('aInfo').innerText = 'Ulaşılabilir sürücü bulunamadı.';
+      }
+    }catch(e){
+      document.getElementById('aInfo').innerHTML = `<span class="bad">Hata:</span> ${e.message}`;
+      console.error(e);
+    }
+  }
+
+  // ====== 6) ÖRNEK B — 4×4 (Hungarian, min toplam) ======
+  const driversB = [
+    { id:'D1', coord:[10.7600,59.9200] },
+    { id:'D2', coord:[10.7400,59.9150] },
+    { id:'D3', coord:[10.7700,59.9100] },
+    { id:'D4', coord:[10.7550,59.9250] }
+  ];
+  const jobsB = [
+    { id:'J1', coord:[10.7522,59.9139] },
+    { id:'J2', coord:[10.7630,59.9210] },
+    { id:'J3', coord:[10.7450,59.9180] },
+    { id:'J4', coord:[10.7355,59.9300] }
+  ];
+  let markersB = [];
+
+  function addMarkersB(){
+    // önce var olanları kaldır
+    markersB.forEach(m=>m.remove()); markersB=[];
+    // sürücüler (mavi)
+    driversB.forEach(d=>{
+      const m = new mapboxgl.Marker({ color:'#2563eb' })
+        .setLngLat(d.coord)
+        .setPopup(new mapboxgl.Popup().setText(d.id))
+        .addTo(map);
+      markersB.push(m);
+    });
+    // işler (kırmızı)
+    jobsB.forEach(j=>{
+      const m = new mapboxgl.Marker({ color:'#ef4444' })
+        .setLngLat(j.coord)
+        .setPopup(new mapboxgl.Popup().setText(j.id))
+        .addTo(map);
+      markersB.push(m);
+    });
+  }
+
+  // Tam Hungarian (Munkres) — kare matris için
+  function hungarianMin(original){
+    const n = original.length;
+    // kopya ve büyük sayı ile null'ları değiştir
+    const cost = original.map(row => row.map(v => (v==null ? 1e9 : v)));
+    // 1) satır azalt
+    for (let r=0;r<n;r++){
+      const m = Math.min(...cost[r]);
+      for (let c=0;c<n;c++) cost[r][c] -= m;
+    }
+    // 2) sütun azalt
+    for (let c=0;c<n;c++){
+      let m = Infinity; for (let r=0;r<n;r++) m = Math.min(m, cost[r][c]);
+      for (let r=0;r<n;r++) cost[r][c] -= m;
+    }
+
+    const starred = Array.from({length:n},()=>Array(n).fill(false));
+    const primed  = Array.from({length:n},()=>Array(n).fill(false));
+    const rowCover= Array(n).fill(false);
+    const colCover= Array(n).fill(false);
+
+    // 3) Sıfırları yıldızla (satır/sütunda başka yıldız yoksa)
+    for (let r=0;r<n;r++){
+      for (let c=0;c<n;c++){
+        if (cost[r][c]===0 && !rowHasStar(r) && !colHasStar(c)){
+          starred[r][c]=true;
+        }
+      }
+    }
+    coverStarredColumns();
+
+    function rowHasStar(r){ return starred[r].some(v=>v); }
+    function colHasStar(c){ return starred.some(row=>row[c]); }
+    function findZero(){
+      for (let r=0;r<n;r++){
+        if (rowCover[r]) continue;
+        for (let c=0;c<n;c++){
+          if (!colCover[c] && cost[r][c]===0) return [r,c];
+        }
+      }
+      return null;
+    }
+    function findStarInRow(r){ return starred[r].indexOf(true); }
+    function findStarInCol(c){
+      for (let r=0;r<n;r++) if (starred[r][c]) return r;
+      return -1;
+    }
+    function findPrimeInRow(r){ return primed[r].indexOf(true); }
+    function coverStarredColumns(){
+      colCover.fill(false);
+      for (let c=0;c<n;c++){
+        if (colHasStar(c)) colCover[c]=true;
+      }
+    }
+
+    // Ana döngü
+    while (colCover.filter(Boolean).length < n){
+      // 4) Kaplı olmayan sıfır bul, prime yap
+      let z = findZero();
+      while (z){
+        const [r,c] = z;
+        primed[r][c] = true;
+        const starCol = findStarInRow(r);
+        if (starCol === -1){
+          // 5) Alternating path: r,c primed ile başla
+          augmentPathFrom([r,c]);
+          // clear covers & primes, kolonları yeniden yıldızlara göre kapat
+          rowCover.fill(false); colCover.fill(false);
+          for (let i=0;i<n;i++) primed[i].fill(false);
+          coverStarredColumns();
+          break; // Step 3'e dön (while başı kontrol eder)
+        } else {
+          // satırı kapa, yıldızın olduğu kolonu aç
+          rowCover[r] = true;
+          colCover[starCol] = false;
+        }
+        z = findZero();
+      }
+      if (!z){
+        // 6) kaplı olmayan en küçük değeri bul
+        let minUncovered = Infinity;
+        for (let r=0;r<n;r++){
+          if (rowCover[r]) continue;
+          for (let c=0;c<n;c++){
+            if (!colCover[c]) minUncovered = Math.min(minUncovered, cost[r][c]);
+          }
+        }
+        // Kaplı satırlara ekle, kaplı olmayan sütunlardan çıkar
+        for (let r=0;r<n;r++){
+          for (let c=0;c<n;c++){
+            if (rowCover[r]) cost[r][c] += minUncovered;
+            if (!colCover[c]) cost[r][c] -= minUncovered;
+          }
+        }
+      }
+    }
+
+    // Sonuç: her satırda yıldızlı sütun ataması
+    const result = Array(n).fill(-1);
+    for (let r=0;r<n;r++){
+      result[r] = starred[r].indexOf(true);
+    }
+    return result;
+
+    function augmentPathFrom(start){
+      // Alternating path: prime -> star -> prime -> ...
+      const path = [start]; // [r,c]
+      let done = false;
+      while (!done){
+        const r = path[path.length-1][0];
+        const c = path[path.length-1][1];
+        const r2 = findStarInCol(c);
+        if (r2 !== -1){
+          path.push([r2, c]); // yıldızlı (r2,c)
+          const c2 = findPrimeInRow(r2);
+          path.push([r2, c2]); // primeli (r2,c2)
+        } else {
+          done = true;
+        }
+      }
+      // Yıldızları tersine çevir: yolda primeleri yıldızla, yıldızları kaldır
+      for (const [rr,cc] of path){
+        if (primed[rr][cc]) { starred[rr][cc] = true; }
+        else { starred[rr][cc] = false; }
+      }
+      // tüm primeleri temizle
+      for (let i=0;i<n;i++) primed[i].fill(false);
+    }
+  }
+
+  async function runExampleB(){
+    try{
+      clearRoutes(); addMarkersB();
+      document.getElementById('bInfo').innerText = 'Hesaplanıyor…';
+      const durations = await matrixManyToMany(driversB.map(d=>d.coord), jobsB.map(j=>j.coord)); // saniye
+
+      // Hungarian için maliyet matrisi
+      const cost = durations.map(row => row.map(v => v==null?1e9:v));
+      const assign = hungarianMin(cost); // result[row]=column
+
+      const colors = ['#2563eb','#16a34a','#f59e0b','#dc2626'];
+      const bList = document.getElementById('bList'); bList.innerHTML='';
+      let total = 0;
+
+      for (let r=0; r<assign.length; r++){
+        const c = assign[r];
+        if (c<0 || c>=jobsB.length || durations[r][c]==null) continue;
+        const d = driversB[r], j = jobsB[c], sec = durations[r][c];
+        total += sec;
+
+        const item = document.createElement('div');
+        item.className = 'item';
+        item.innerHTML = `<b>${d.id}</b> → <b>${j.id}</b> — ETA <b>${fmtMin(sec)}</b> <span class="mono">(${toCoordStr(d.coord)} → ${toCoordStr(j.coord)})</span>`;
+        item.onclick = ()=> drawRoute('b-'+r, d.coord, j.coord, colors[r%colors.length]);
+        bList.appendChild(item);
+
+        // otomatik çiz
+        await drawRoute('b-'+r, d.coord, j.coord, colors[r%colors.length]);
+      }
+      document.getElementById('bInfo').innerHTML = `Toplam süre (seçilen eşleşme): <b>${fmtMin(total)}</b>`;
+    }catch(e){
+      document.getElementById('bInfo').innerHTML = `<span class="bad">Hata:</span> ${e.message}`;
+      console.error(e);
+    }
+  }
+
+  // ====== 7) UI: Butonlar ======
+  document.getElementById('runA').onclick = runExampleA;
+  document.getElementById('runB').onclick = runExampleB;
+  document.getElementById('clear').onclick = ()=>{
+    clearRoutes();
+    document.getElementById('aList').innerHTML='';
+    document.getElementById('bList').innerHTML='';
+    document.getElementById('aInfo').innerText='';
+    document.getElementById('bInfo').innerText='';
+  };
+  document.getElementById('useMe').onclick = ()=>{
+    if (!navigator.geolocation) return alert('Geolocation desteklenmiyor.');
+    navigator.geolocation.getCurrentPosition(pos=>{
+      jobA.coord = [pos.coords.longitude, pos.coords.latitude];
+      if (jobMarkerA) jobMarkerA.setLngLat(jobA.coord); else addMarkersA();
+      map.easeTo({ center: jobA.coord, zoom: 13 });
+      document.getElementById('aInfo').innerText = `İş konumu (benim konumum). "A — Matrix Hesapla"ya bas.`;
+    }, err=>alert('Konum alınamadı: '+err.message), { enableHighAccuracy:true, timeout:10000 });
+  };
+
+  // ====== 8) Başlangıçta markerlar ======
+  map.on('load', ()=>{
+    addMarkersA();
+    addMarkersB();
+  });
+</script>
+</body>
+</html>
